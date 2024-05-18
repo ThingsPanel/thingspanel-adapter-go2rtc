@@ -17,10 +17,10 @@ func Init() {
 	client = tpprotocolsdkgo.NewClient(addr)
 }
 
-func GetDeviceConfig(accessToken string, deviceID string) (*api.DeviceConfigResponse, error) {
+func GetDeviceConfig(voucher string, deviceID string) (*api.DeviceConfigResponse, error) {
 	deviceConfigReq := api.DeviceConfigRequest{
-		AccessToken: accessToken,
-		DeviceID:    deviceID,
+		Voucher:  voucher,
+		DeviceID: deviceID,
 	}
 	response, err := client.API.GetDeviceConfig(deviceConfigReq)
 	if err != nil {

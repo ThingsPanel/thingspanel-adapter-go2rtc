@@ -2,12 +2,14 @@ package httpservice
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	tpprotocolsdkgo "github.com/ThingsPanel/tp-protocol-sdk-go"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -19,10 +21,8 @@ func Init() {
 
 func start() {
 	var handler tpprotocolsdkgo.Handler = tpprotocolsdkgo.Handler{
-		OnCreateDevice: OnCreateDevice,
-		OnUpdateDevice: OnUpdateDevice,
-		OnDeleteDevice: OnDeleteDevice,
-		OnGetForm:      OnGetForm,
+		OnDisconnectDevice: OnDisconnectDevice,
+		OnGetForm:          OnGetForm,
 	}
 	addr := viper.GetString("http_server.address")
 	log.Println("http服务启动：", addr)
@@ -35,23 +35,55 @@ func start() {
 
 // OnGetForm 获取协议插件的json表单
 func OnGetForm(w http.ResponseWriter, r *http.Request) {
-	log.Println("OnGetForm")
+	logrus.Info("OnGetForm")
 	r.ParseForm() //解析参数，默认是不会解析的
-	log.Println("【收到api请求】path", r.URL.Path)
-	log.Println("scheme", r.URL.Scheme)
-	var rsp = make(map[string]interface{})
-	rsp["data"] = readFormConfig()
-	data, err := json.Marshal(rsp)
-	if err != nil {
-		log.Println(err.Error())
+	logrus.Info("【收到api请求】path", r.URL.Path)
+	logrus.Info("query", r.URL.Query())
+
+	device_type := r.URL.Query()["device_type"][0]
+	form_type := r.URL.Query()["form_type"][0]
+	protocol_type := r.URL.Query()["protocol_type"][0]
+	// 如果请求参数protocol_type不等于MMindjoy-WM，返回空
+	if protocol_type != "Mindjoy-WM" {
+		RspError(w, fmt.Errorf("not support protocol type: %s", protocol_type))
+		return
 	}
-	fmt.Fprint(w, string(data)) //这个写入到w的是输出到客户端的
+	//CFG配置表单 VCR凭证表单 VCRT凭证类型表单
+	switch form_type {
+	case "VCR":
+		if device_type == "1" {
+			// 设备凭证表单
+			RspSuccess(w, readFormConfigByPath("./form_voucher.json"))
+		} else {
+			RspSuccess(w, nil)
+		}
+	case "VCRT":
+		if device_type == "1" {
+			//设备凭证类型表单
+			RspSuccess(w, readFormConfigByPath("./form_voucher_type.json"))
+		} else {
+			RspSuccess(w, nil)
+		}
+	default:
+		RspError(w, errors.New("not support form type: "+form_type))
+	}
 }
 
-func readFormConfig() interface{} {
-	filePtr, err := os.Open("./form_config.json")
+func OnDisconnectDevice(w http.ResponseWriter, r *http.Request) {
+	logrus.Info("OnDisconnectDevice")
+	r.ParseForm() //解析参数，默认是不会解析的
+	logrus.Info("【收到api请求】path", r.URL.Path)
+	logrus.Info("query", r.URL.Query())
+	// 断开设备
+
+	//RspSuccess(w, nil)
+}
+
+// ./form_config.json
+func readFormConfigByPath(path string) interface{} {
+	filePtr, err := os.Open(path)
 	if err != nil {
-		log.Println("文件打开失败...", err.Error())
+		logrus.Warn("文件打开失败...", err.Error())
 		return nil
 	}
 	defer filePtr.Close()
@@ -60,88 +92,10 @@ func readFormConfig() interface{} {
 	decoder := json.NewDecoder(filePtr)
 	err = decoder.Decode(&info)
 	if err != nil {
-		log.Println("解码失败", err.Error())
+		logrus.Warn("解码失败", err.Error())
 		return info
 	} else {
-		log.Println("读取文件[form_config.json]成功...")
+		logrus.Info("读取文件[form_config.json]成功...")
 		return info
 	}
-}
-
-// OnCreateDevice 创建设备
-func OnCreateDevice(w http.ResponseWriter, r *http.Request) {
-	log.Println("OnCreateDevice")
-	r.ParseForm() //解析参数，默认是不会解析的
-	log.Println("【收到api请求】path", r.URL.Path)
-	log.Println("scheme", r.URL.Scheme)
-	// 读取客户端发送的数据
-	var reqDataMap = make(map[string]interface{})
-	if err := json.NewDecoder(r.Body).Decode(&reqDataMap); err != nil {
-		r.Body.Close()
-		w.WriteHeader(400)
-		return
-	}
-	// 逻辑处理。。。
-	// 返回成功
-	var rspdata = make(map[string]interface{})
-	w.Header().Set("Content-Type", "application/json")
-	rspdata["code"] = 200
-	rspdata["message"] = "success"
-	data, err := json.Marshal(rspdata)
-	if err != nil {
-		log.Println(err.Error())
-	}
-	fmt.Fprint(w, string(data))
-}
-
-// OnUpdateDevice 更新设备
-func OnUpdateDevice(w http.ResponseWriter, r *http.Request) {
-	log.Println("OnUpdateDevice")
-	r.ParseForm() //解析参数，默认是不会解析的
-	log.Println("【收到api请求】path", r.URL.Path)
-	log.Println("scheme", r.URL.Scheme)
-	// 读取客户端发送的数据
-	var reqDataMap = make(map[string]interface{})
-	if err := json.NewDecoder(r.Body).Decode(&reqDataMap); err != nil {
-		r.Body.Close()
-		w.WriteHeader(400)
-		return
-	}
-	// 逻辑处理。。。
-	// 返回成功
-	var rspdata = make(map[string]interface{})
-	w.Header().Set("Content-Type", "application/json")
-	rspdata["code"] = 200
-	rspdata["message"] = "success"
-	data, err := json.Marshal(rspdata)
-	if err != nil {
-		log.Println(err.Error())
-	}
-	fmt.Fprint(w, string(data))
-}
-
-// OnDeleteDevice 删除设备
-func OnDeleteDevice(w http.ResponseWriter, r *http.Request) {
-	log.Println("OnDeleteDevice")
-	r.ParseForm() //解析参数，默认是不会解析的
-	log.Println("【收到api请求】path", r.URL.Path)
-	log.Println("scheme", r.URL.Scheme)
-	// 读取客户端发送的数据
-	var reqDataMap = make(map[string]interface{})
-	if err := json.NewDecoder(r.Body).Decode(&reqDataMap); err != nil {
-		r.Body.Close()
-		w.WriteHeader(400)
-		return
-	}
-	// 逻辑处理。。。
-	// 返回成功
-	var rspdata = make(map[string]interface{})
-	w.Header().Set("Content-Type", "application/json")
-	rspdata["code"] = 200
-	rspdata["message"] = "success"
-	data, err := json.Marshal(rspdata)
-	if err != nil {
-		log.Println(err.Error())
-	}
-	fmt.Fprint(w, string(data))
 }
