@@ -4,7 +4,6 @@ import (
 	httpclient "earth/http_client"
 	httpservice "earth/http_service"
 	"earth/mqtt"
-	deviceconfig "earth/services"
 	"log"
 	"strings"
 
@@ -19,7 +18,7 @@ func main() {
 	// 启动http客户端
 	httpclient.Init()
 	// 启动服务
-	deviceconfig.Start()
+	// deviceconfig.Start()
 	// 启动http服务
 	httpservice.Init()
 	// 订阅平台下发的消息

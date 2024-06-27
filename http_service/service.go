@@ -3,7 +3,6 @@ package httpservice
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -42,13 +41,13 @@ func OnGetForm(w http.ResponseWriter, r *http.Request) {
 
 	device_type := r.URL.Query()["device_type"][0]
 	form_type := r.URL.Query()["form_type"][0]
-	protocol_type := r.URL.Query()["protocol_type"][0]
-	// 如果请求参数protocol_type不等于MMindjoy-WM，返回空
-	if protocol_type != "Mindjoy-WM" {
-		RspError(w, fmt.Errorf("not support protocol type: %s", protocol_type))
-		return
-	}
-	//CFG配置表单 VCR凭证表单 VCRT凭证类型表单
+	// service_identifier := r.URL.Query()["protocol_type"][0]
+	// 根据需要对服务标识符进行验证，可不验证
+	// if service_identifier != "xxxx" {
+	// 	RspError(w, fmt.Errorf("not support protocol type: %s", service_identifier))
+	// 	return
+	// }
+	//CFG配置表单 VCR凭证表单 SVCR服务凭证表单
 	switch form_type {
 	case "VCR":
 		if device_type == "1" {
@@ -57,10 +56,10 @@ func OnGetForm(w http.ResponseWriter, r *http.Request) {
 		} else {
 			RspSuccess(w, nil)
 		}
-	case "VCRT":
+	case "SVCR":
 		if device_type == "1" {
-			//设备凭证类型表单
-			RspSuccess(w, readFormConfigByPath("./form_voucher_type.json"))
+			//服务凭证类型表单
+			RspSuccess(w, readFormConfigByPath("./form_service_voucher.json"))
 		} else {
 			RspSuccess(w, nil)
 		}

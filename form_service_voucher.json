@@ -1,0 +1,24 @@
+[
+    {
+        "dataKey": "username",
+        "label": "Service Username",
+        "placeholder": "please input the Service Username",
+        "type": "input",
+        "validate": {
+            "message": "The Service Username cannot be empty",
+            "required": true,
+            "type": "string"
+        }
+    },
+    {
+        "dataKey": "password",
+        "label": "Service Password",
+        "placeholder": "please input the Service Password",
+        "type": "input",
+        "validate": {
+            "message": "The Service Password cannot be empty",
+            "required": true,
+            "type": "string"
+        }
+    }
+]

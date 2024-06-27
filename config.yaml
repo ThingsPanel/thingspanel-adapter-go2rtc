@@ -5,7 +5,7 @@ mqtt:
   broker: 127.0.0.1:1883 #mqtt服务端地址
   username: root
   password: root
-  topic_to_publish: gateway/attributes #发送主题
+  topic_to_publish: devices/attributes #发送遥测数据主题
   topic_to_subscribe: plugin/protocol_name/#
   status_topic: device/status
   qos: 0 #qos
