@@ -1,10 +1,12 @@
 package mqtt
 
 import (
+	"encoding/json"
 	"log"
 
 	tpprotocolsdkgo "github.com/ThingsPanel/tp-protocol-sdk-go"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -25,17 +27,49 @@ func InitClient() {
 	MqttClient = client
 }
 
-// 发布设备消息{"token":device_token,"values":{sub_device_addr1:{key:value...},sub_device_add2r:{key:value...}}}
-func Publish(payload string) error {
-	// 主题
-	topic := viper.GetString("mqtt.topic_to_publish")
+type MqttPayload struct {
+	DeviceID string `json:"device_id"`
+	Values   []byte `json:"values"`
+}
+
+// 组装payload{"device_id":device_id,"values":{key:value...}}
+// values是base64编码的数据
+func AssemblePayload(deviceID string, payload []byte) ([]byte, error) {
+	var mqttPayload MqttPayload
+	mqttPayload.DeviceID = deviceID
+	mqttPayload.Values = payload
+	newMsgJson, err := json.Marshal(mqttPayload)
+	if err != nil {
+		return nil, err
+	}
+	return newMsgJson, nil
+}
+
+// 发布遥测消息
+func PublishTelemetry(deviceID string, data map[string]interface{}) error {
+	topic := viper.GetString("mqtt.telemetry_topic_to_publish")
 	qos := viper.GetUint("mqtt.qos")
-	// 发布消息
-	if err := MqttClient.Publish(topic, string(payload), uint8(qos)); err != nil {
-		log.Printf("发布消息失败: %v", err)
+	// map转json
+	payload, err := json.Marshal(data)
+	if err != nil {
+		logrus.Warn("map转json失败:", err)
 		return err
 	}
-	log.Println("发布消息成功:", payload, "主题:", topic)
+	// 组装payload
+	newMsgJson, err := AssemblePayload(deviceID, payload)
+	if err != nil {
+		logrus.Warn("组装payload失败:", err)
+		return err
+	}
+	err = MqttClient.Publish(topic, string(newMsgJson), uint8(qos))
+	if err != nil {
+		logrus.Warn("发送消息失败:", err)
+		return err
+	}
+	logrus.Debug("遥测主题:", topic)
+	logrus.Debug("消息内容:", string(payload))
+	logrus.Debug("\n==>tp 发送消息成功:", string(newMsgJson))
+
 	return nil
 }
 

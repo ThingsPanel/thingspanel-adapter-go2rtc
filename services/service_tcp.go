@@ -1,7 +1,6 @@
 package services
 
 import (
-	"log"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -43,12 +42,5 @@ func StartTCP() {
 
 // 处理tcp数据
 func dealTCPData(conn net.Conn) {
-	// make a buffer to hold incoming data
-	buf := make([]byte, 1024)
-	// read the incoming connection into the buffer
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		logrus.Println("Error reading:", err.Error())
-	}
-	log.Println("Received data:", string(buf[:reqLen]))
+	NewTCPObject(conn)
 }

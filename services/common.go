@@ -12,11 +12,15 @@ import (
 func AuthDevice(deviceSecret string) (deviceInfo *api.DeviceConfigResponse, err error) {
 	voucher := AssembleVoucher(deviceSecret)
 	// 读取设备信息
-	deviceInfo, err = httpclient.GetDeviceConfig(voucher, deviceSecret)
+	deviceInfo, err = httpclient.GetDeviceConfig(voucher, "")
 	if err != nil {
 		// 获取设备信息失败，请检查连接包是否正确
 		logrus.Error(err)
 		return
+	}
+	if deviceInfo.Code != 200 {
+		err = fmt.Errorf("device auth failed, code: %d, message: %s", deviceInfo.Code, deviceInfo.Message)
+		logrus.Error(err)
 	}
 	return
 }

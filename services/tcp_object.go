@@ -3,6 +3,8 @@ package services
 import (
 	"net"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type TCPObject struct {
@@ -25,5 +27,13 @@ func NewTCPObject(conn net.Conn) {
 
 func (w *TCPObject) Start() {
 	// 鉴权
+	// make a buffer to hold incoming data
+	buf := make([]byte, 1024)
+	// read the incoming connection into the buffer
+	reqLen, err := w.Conn.Read(buf)
+	if err != nil {
+		logrus.Println("Error reading:", err.Error())
+	}
+	logrus.Println("Received data:", string(buf[:reqLen]))
 	// 处理数据
 }
