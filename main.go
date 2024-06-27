@@ -1,10 +1,10 @@
 package main
 
 import (
-	httpclient "earth/http_client"
-	httpservice "earth/http_service"
-	"earth/mqtt"
 	"log"
+	httpclient "plugin_template/http_client"
+	httpservice "plugin_template/http_service"
+	"plugin_template/mqtt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -28,7 +28,7 @@ func main() {
 func conf() {
 	log.Println("加载配置文件...")
 	// 设置环境变量前缀
-	viper.SetEnvPrefix("EARTH")
+	viper.SetEnvPrefix("plugin_template")
 	// 使 Viper 能够读取环境变量
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

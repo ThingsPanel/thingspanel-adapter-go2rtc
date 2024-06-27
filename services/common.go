@@ -1,8 +1,8 @@
 package services
 
 import (
-	httpclient "earth/http_client"
 	"fmt"
+	httpclient "plugin_template/http_client"
 
 	"github.com/ThingsPanel/tp-protocol-sdk-go/api"
 	"github.com/sirupsen/logrus"
