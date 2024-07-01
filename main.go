@@ -12,13 +12,14 @@ import (
 
 func main() {
 	conf()
+	LogInIt()
 	log.Println("Starting the application...")
 	// 启动mqtt客户端
 	mqtt.InitClient()
 	// 启动http客户端
 	httpclient.Init()
 	// 启动服务
-	// deviceconfig.Start()
+	// go deviceconfig.Start()
 	// 启动http服务
 	httpservice.Init()
 	// 订阅平台下发的消息
