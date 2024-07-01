@@ -3,6 +3,7 @@ package httpclient
 import (
 	"fmt"
 	"log"
+	"time"
 
 	tpprotocolsdkgo "github.com/ThingsPanel/tp-protocol-sdk-go"
 	"github.com/ThingsPanel/tp-protocol-sdk-go/api"
@@ -15,6 +16,7 @@ func Init() {
 	addr := viper.GetString("thingspanel.address")
 	log.Println("创建http客户端:", addr)
 	client = tpprotocolsdkgo.NewClient(addr)
+	go ServiceHeartbeat()
 }
 
 func GetDeviceConfig(voucher string, deviceID string) (*api.DeviceConfigResponse, error) {
@@ -29,4 +31,28 @@ func GetDeviceConfig(voucher string, deviceID string) (*api.DeviceConfigResponse
 		return nil, fmt.Errorf(errMsg)
 	}
 	return response, nil
+}
+
+func ServiceHeartbeat() {
+	for {
+		err := reportHeartbeat()
+		if err != nil {
+			log.Println(err)
+		}
+		time.Sleep(50 * time.Second)
+	}
+}
+
+func reportHeartbeat() error {
+	serviceHeartbeatReq := api.HeartbeatRequest{
+		ServiceIdentifier: "alarm",
+	}
+	response, err := client.API.Heartbeat(serviceHeartbeatReq)
+	if err != nil {
+		return fmt.Errorf("服务心跳上报失败 (请求参数：%+v): %v", serviceHeartbeatReq, err)
+	}
+	if response.Code != 200 {
+		return fmt.Errorf("服务心跳上报失败 (请求参数：%+v): %v", serviceHeartbeatReq, response.Message)
+	}
+	return nil
 }
