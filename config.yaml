@@ -1,5 +1,6 @@
 server:
   address: 0.0.0.0:5000 #服务地址
+  identifier: TEMPLATE # 服务唯一标识符注册插件时候的服务标识符字段
 
 mqtt:
   broker: 127.0.0.1:1883 #mqtt服务端地址
