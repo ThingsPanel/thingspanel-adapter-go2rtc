@@ -22,8 +22,6 @@ func main() {
 	// go deviceconfig.Start()
 	// 启动http服务
 	httpservice.Init()
-	// 订阅平台下发的消息
-	mqtt.Subscribe()
 	select {}
 }
 func conf() {

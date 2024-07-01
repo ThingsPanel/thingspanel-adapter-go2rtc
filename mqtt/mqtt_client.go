@@ -5,7 +5,6 @@ import (
 	"log"
 
 	tpprotocolsdkgo "github.com/ThingsPanel/tp-protocol-sdk-go"
-	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -73,20 +72,32 @@ func PublishTelemetry(deviceID string, data map[string]interface{}) error {
 	return nil
 }
 
-// 订阅
-func Subscribe() {
-	// 主题
-	topic := viper.GetString("mqtt.topic_to_subscribe")
+// 发布命令响应
+func PublishCommandResponse(deviceID string, messageID string, data map[string]interface{}) error {
+	topic := viper.GetString("mqtt.command_response_topic_to_publish")
 	qos := viper.GetUint("mqtt.qos")
-	// 订阅主题
-	if err := MqttClient.Subscribe(topic, messageHandler, uint8(qos)); err != nil {
-		log.Printf("订阅主题失败: %v", err)
+	// map转json
+	payload, err := json.Marshal(data)
+	if err != nil {
+		logrus.Warn("map转json失败:", err)
+		return err
 	}
-	log.Println("订阅主题成功:", topic)
+	// 组装payload
+	newMsgJson, err := AssemblePayload(deviceID, payload)
+	if err != nil {
+		logrus.Warn("组装payload失败:", err)
+		return err
+	}
+	// 组装主题
+	topic = topic + messageID
+	err = MqttClient.Publish(topic, string(newMsgJson), uint8(qos))
+	if err != nil {
+		logrus.Warn("发送消息失败:", err)
+		return err
+	}
+	logrus.Debug("命令响应主题:", topic)
+	logrus.Debug("消息内容:", string(payload))
+	logrus.Debug("\n==>tp 发送消息成功:", string(newMsgJson))
 
-}
-
-// 设备下发消息的回调函数：主题plugin/modbus/# payload：{sub_device_addr:{key:value...},sub_device_addr:{key:value...}}
-func messageHandler(client MQTT.Client, msg MQTT.Message) {
-	log.Printf("收到消息: %s", msg.Payload())
+	return nil
 }

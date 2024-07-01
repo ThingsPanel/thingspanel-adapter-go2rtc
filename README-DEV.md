@@ -11,8 +11,3 @@ go get -u github.com/ThingsPanel/tp-protocol-sdk-go@v1.2.0
 
 
 ## 其他
-### 测试命令
-
-
-mosquitto_pub -h 47.115.210.16 -p 1883 -t "devices/telemetry" -m "{\"temp\":12.5}" -u "c55d8498" -P "c55d8498-e01e" -i "0"
-mosquitto_pub -h 47.115.210.16 -p 1883 -t "devices/telemetry" -m "{\"temp\":12.5}" -u "c55d8498" -P "c55d8498-e01e" -i "0"
