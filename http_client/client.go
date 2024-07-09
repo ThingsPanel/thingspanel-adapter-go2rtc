@@ -45,7 +45,7 @@ func ServiceHeartbeat() {
 
 // 这里需要改为自己的服务
 func reportHeartbeat() error {
-	sid := viper.GetString("service.identifier")
+	sid := viper.GetString("server.identifier")
 	serviceHeartbeatReq := api.HeartbeatRequest{
 		ServiceIdentifier: sid,
 	}
