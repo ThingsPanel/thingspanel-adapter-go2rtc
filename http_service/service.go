@@ -3,6 +3,7 @@ package httpservice
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -97,4 +98,47 @@ func readFormConfigByPath(path string) interface{} {
 		logrus.Info("读取文件[form_config.json]成功...")
 		return info
 	}
+}
+
+func OnNotifyEvent(w http.ResponseWriter, r *http.Request) {
+	logrus.Info("OnNotifyEvent")
+	r.ParseForm() //解析参数，默认是不会解析的
+	logrus.Info("【收到api请求】path", r.URL.Path)
+	logrus.Info("query", r.Body)
+	// 读取body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		logrus.Warn("读取body失败", err.Error())
+		return
+	}
+	logrus.Info("body", string(body))
+	type NotifyEvent struct {
+		MessageType string `json:"message_type"`
+		Message     string `json:"message"`
+	}
+	// 解析到NotifyEvent
+	var notifyEvent NotifyEvent
+	err = json.Unmarshal(body, &notifyEvent)
+	if err != nil {
+		logrus.Warn("解析body失败", err.Error())
+		RspError(w, err)
+		return
+	}
+	logrus.Info("notifyEvent", notifyEvent)
+	if notifyEvent.MessageType != "1" {
+		type NotifyEventData struct {
+			ServiceAccessID string `json:"service_access_id"`
+		}
+		var notifyEventData NotifyEventData
+		err = json.Unmarshal([]byte(notifyEvent.Message), &notifyEventData)
+		if err != nil {
+			logrus.Warn("解析message失败", err.Error())
+			RspError(w, err)
+			return
+		}
+		return
+	}
+	RspSuccess(w, nil)
+	// 处理事件通知
+	//RspSuccess(w, nil)
 }
