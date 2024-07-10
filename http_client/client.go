@@ -58,3 +58,16 @@ func reportHeartbeat() error {
 	}
 	return nil
 }
+
+// 获取服务接入点
+func GetServiceAccessPoint(serviceAccessPointID string) (*api.ServiceAccessResponseData, error) {
+	ServiceAccessPointReq := api.ServiceAccessRequest{
+		ServiceAccessID: serviceAccessPointID,
+	}
+
+	response, err := client.API.GetServiceAccess(ServiceAccessPointReq)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务接入点失败: %v", err)
+	}
+	return response, nil
+}
