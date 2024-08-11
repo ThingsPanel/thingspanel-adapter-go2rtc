@@ -6,7 +6,24 @@
 
 - 官方插件开发说明文档
 
-http://thingspanel.io/zh-Hans/docs/system-development/eveloping-plug-in/customProtocol
+http://thingspanel.io/zh-Hans/docs/system-development/developing-plug-in/customProtocol
+
+## 项目结构
+
+
+```
+protocol-plugin-template/
+├── config.yaml           # 配置文件
+├── form_config.json      # 配置表单定义
+├── form_voucher.json     # 设备凭证表单定义
+├── form_service_voucher.json # 服务凭证表单定义
+├── http_client/          # HTTP客户端相关代码
+├── http_service/         # HTTP服务相关代码
+├── mqtt/                 # MQTT相关代码
+├── services/             # 核心服务逻辑
+└── main.go               # 程序入口
+```
+
 
 ## 表单规范
 
