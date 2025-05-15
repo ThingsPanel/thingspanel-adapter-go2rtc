@@ -25,6 +25,7 @@ type PlatformConfig struct {
 type LogConfig struct {
 	Level      string `yaml:"level"`
 	FilePath   string `yaml:"filePath"`
+	EnableFile bool   `yaml:"enableFile"` // 是否启用文件日志
 	MaxSize    int    `yaml:"maxSize"`    // 每个日志文件的最大大小（MB）
 	MaxBackups int    `yaml:"maxBackups"` // 保留的旧日志文件的最大数量
 	MaxAge     int    `yaml:"maxAge"`     // 保留日志文件的最大天数

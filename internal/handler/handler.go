@@ -9,6 +9,8 @@ import (
 	formjson "tp-plugin/internal/form_json"
 	"tp-plugin/internal/platform"
 
+	"strings"
+
 	"github.com/ThingsPanel/tp-protocol-sdk-go/handler"
 	"github.com/sirupsen/logrus"
 )
@@ -16,10 +18,23 @@ import (
 // logrusWriter 实现 io.Writer 接口用于适配logrus
 type logrusWriter struct {
 	logger *logrus.Logger
+	prefix string
 }
 
 func (w *logrusWriter) Write(p []byte) (n int, err error) {
-	w.logger.Info(string(p))
+	// 移除标准库logger添加的时间和文件信息前缀，只保留消息内容
+	msg := string(p)
+
+	// 查找第一个 ]: 后面的内容作为实际消息
+	if idx := strings.Index(msg, "]: "); idx >= 0 {
+		msg = msg[idx+3:]
+	}
+
+	// 移除末尾换行符
+	msg = strings.TrimSpace(msg)
+
+	// 添加前缀并记录日志
+	w.logger.Info(w.prefix + msg)
 	return len(p), nil
 }
 
@@ -33,8 +48,13 @@ type HTTPHandler struct {
 // NewHTTPHandler 创建HTTP处理器
 func NewHTTPHandler(platform *platform.PlatformClient, logger *logrus.Logger) *HTTPHandler {
 	// 创建适配器
-	writer := &logrusWriter{logger: logger}
-	stdlog := log.New(writer, "[HTTP] ", log.Ldate|log.Ltime|log.Lshortfile)
+	writer := &logrusWriter{
+		logger: logger,
+		prefix: "[HTTP] ",
+	}
+
+	// 不使用标准库的前缀，因为我们会在写入时添加
+	stdlog := log.New(writer, "", 0)
 
 	return &HTTPHandler{
 		platform: platform,

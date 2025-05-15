@@ -1,21 +1,22 @@
 # configs/config.yaml
 server:
-  port: 5000
-  http_port: 4841
+  port: 15001
+  http_port: 15002
   maxConnections: 100
   heartbeatTimeout: 60 
 
 platform:
   url: "http://47.92.253.145:9999"
   mqtt_broker: "mqtt://47.92.253.145:1883"
-  mqtt_username: "plugin"
-  mqtt_password: "plugin"
+  mqtt_username: "root"
+  mqtt_password: "root"
   service_identifier: "Template"  # 添加服务标识符
 
 log:
   level: "debug"
   filePath: "logs/app.log"
+  enableFile: true  # 是否将日志输出到文件
   maxSize: 100
   maxBackups: 3
   maxAge: 28
-  compress: true
+  compress: true # 是否压缩日志文件
