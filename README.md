@@ -12,6 +12,42 @@
 - 优雅的错误处理
 - 配置文件管理
 
+## 快速开始
+
+### 安装
+
+1. 克隆仓库
+   ```bash
+   git clone https://github.com/your-org/protocol-plugin-template.git
+   cd protocol-plugin-template
+   ```
+
+2. 安装依赖
+   ```bash
+   go mod tidy
+   ```
+
+### 运行
+
+1. 确保配置文件 `configs/config.yaml` 已正确设置
+
+2. 启动服务
+   ```bash
+   cd cmd
+   go run main.go
+   ```
+
+   也可以指定配置文件路径
+   ```bash
+   go run main.go --config ../configs/custom-config.yaml
+   ```
+
+### 开发自定义协议插件
+
+1. 修改 `configs/config.yaml` 中的配置以匹配您的环境
+2. 根据需要实现自定义协议处理逻辑
+3. 如果仅需要控制台日志而不想生成日志文件，可将 `enableFile` 设置为 `false`
+
 ## 目录结构
 
 ```text
@@ -21,6 +57,12 @@
 ├── configs/               # 配置文件目录
 │   └── config.yaml        # 主配置文件
 ├── internal/              # 内部包
+│   ├── bootstrap/        # 应用引导和初始化
+│   │   ├── app.go        # 应用程序上下文
+│   │   ├── config.go     # 配置加载
+│   │   ├── http.go       # HTTP服务初始化
+│   │   ├── logger.go     # 日志初始化
+│   │   └── platform.go   # 平台客户端初始化
 │   ├── config/           # 配置结构定义
 │   ├── form_json/        # 表单JSON定义
 │   ├── handler/          # HTTP处理器
@@ -28,31 +70,40 @@
 │   │   └── logger/       # 日志包
 │   └── platform/         # 平台交互
 ├── examples/              # 示例代码
+├── logs/                  # 日志文件目录(运行时生成)
 └── go.mod                # Go模块文件
 ```
 
 ## 核心组件说明
 
-### 1. 配置管理 (internal/config)
+### 1. 应用引导 (internal/bootstrap)
+
+- 负责应用程序初始化和启动流程
+- 管理应用生命周期和资源
+- 提供优雅的服务启动和关闭机制
+- 协调各个组件的初始化顺序
+
+### 2. 配置管理 (internal/config)
 
 - 定义了插件所需的各种配置结构
 - 支持服务器配置、平台配置和日志配置
 - 使用YAML格式配置文件
 
-### 2. HTTP处理器 (internal/handler)
+### 3. HTTP处理器 (internal/handler)
 
 - 处理各种HTTP请求
 - 实现了表单配置、设备断开连接、通知等处理函数
 - 支持自定义处理逻辑
 
-### 3. 日志系统 (internal/pkg/logger)
+### 4. 日志系统 (internal/pkg/logger)
 
 - 基于logrus的日志系统
 - 支持日志级别控制
 - 支持日志文件轮转
 - 支持控制台彩色输出
+- 支持文件日志开关，可选择仅输出到控制台
 
-### 4. 平台客户端 (internal/platform)
+### 5. 平台客户端 (internal/platform)
 
 - 管理与ThingsPanel平台的通信
 - 提供设备管理和缓存机制
@@ -64,6 +115,44 @@
 - 官方插件开发说明文档
 
 <http://thingspanel.io/zh-Hans/docs/system-development/eveloping-plug-in/customProtocol>
+
+## 配置文件说明
+
+配置文件位于 `configs/config.yaml`，主要包含以下配置：
+
+### 服务器配置 (server)
+
+```yaml
+server:
+  port: 15001             # 协议插件服务端口
+  http_port: 15002        # HTTP服务端口
+  maxConnections: 100     # 最大连接数
+  heartbeatTimeout: 60    # 心跳超时时间(秒)
+```
+
+### 平台配置 (platform)
+
+```yaml
+platform:
+  url: "http://example.com"       # 平台API地址
+  mqtt_broker: "mqtt://broker"    # MQTT服务器地址
+  mqtt_username: "username"       # MQTT用户名
+  mqtt_password: "password"       # MQTT密码
+  service_identifier: "Template"  # 服务标识符
+```
+
+### 日志配置 (log)
+
+```yaml
+log:
+  level: "debug"          # 日志级别: debug, info, warn, error
+  filePath: "logs/app.log" # 日志文件路径
+  enableFile: true        # 是否将日志输出到文件
+  maxSize: 100            # 每个日志文件的最大大小(MB)
+  maxBackups: 3           # 保留的旧日志文件的最大数量
+  maxAge: 28              # 保留日志文件的最大天数
+  compress: true          # 是否压缩旧日志文件
+```
 
 ## 表单规范
 
