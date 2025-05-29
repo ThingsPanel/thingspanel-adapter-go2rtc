@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  protocol-plugin-og-sz501:
+    image: protocol-plugin-og-sz501:1.0.0
+    container_name: protocol-plugin-og-sz501
+    ports:
+      - "15001:15001"
+    environment:
+      - "TZ=Asia/Shanghai"
+      - "P_PLATFORM_URL=http://backend:9999"
+      - "P_PLATFORM_MQTT_BROKER=mqtt://gmqtt:1883"
+      - "P_PLATFORM_MQTT_QOS=0"
+      - "P_LOG_LEVEL=debug"
+    restart: unless-stopped
+    networks:
+      thingspanel-docker_thingspanel_network:
+        ipv4_address: 172.20.0.100  # 为插件分配一个固定IP
+
+# 使用外部网络，连接到主平台的网络
+networks:
+  thingspanel-docker_thingspanel_network:
+    external: true

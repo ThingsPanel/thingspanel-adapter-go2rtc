@@ -139,11 +139,11 @@ func (h *HTTPHandler) handleDeviceDisconnect(req *handler.DeviceDisconnectReques
 	}
 
 	// 发送设备离线状态
-	err = h.platform.SendDeviceStatus(req.DeviceID, "0")
-	if err != nil {
-		h.logger.WithError(err).Error("发送设备离线状态失败")
-		return err
-	}
+	// err = h.platform.SendDeviceStatus(req.DeviceID, 0)
+	// if err != nil {
+	// 	h.logger.WithError(err).Error("发送设备离线状态失败")
+	// 	return err
+	// }
 
 	return nil
 }

@@ -5,37 +5,46 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"tp-plugin/internal/config"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
 
-// LoadConfig 加载配置文件
+// LoadConfig 加载配置文件，支持环境变量覆盖
 func LoadConfig(configPath string) (*config.Config, error) {
-	// 检查配置文件是否存在
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("配置文件不存在: %s", configPath)
-	}
+	// 设置配置文件
+	viper.SetConfigFile(configPath)
+	viper.SetConfigType("yaml")
 
-	// 读取并解析配置文件
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %v", err)
+	// 设置环境变量前缀
+	viper.SetEnvPrefix("P")
+	// 使 Viper 能够读取环境变量
+	viper.AutomaticEnv()
+	// 将配置键中的点号替换为下划线，以匹配环境变量命名规范
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// 读取配置文件（如果存在）
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, fmt.Errorf("读取配置文件失败: %v", err)
+		}
+		// 配置文件不存在时继续，使用环境变量
 	}
 
 	var cfg config.Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("解析配置文件失败: %v", err)
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("解析配置失败: %v", err)
 	}
 
 	logrus.WithFields(logrus.Fields{
 		"port":            cfg.Server.Port,
-		"max_connections": cfg.Server.MaxConnections,
 		"heartbeat":       cfg.Server.HeartbeatTimeout,
 		"log_level":       cfg.Log.Level,
 		"log_path":        cfg.Log.FilePath,
 		"enable_file_log": cfg.Log.EnableFile,
+		"mqtt_broker":     cfg.Platform.MQTTBroker,
 	}).Info("配置加载成功")
 
 	return &cfg, nil

@@ -126,7 +126,6 @@
 server:
   port: 15001             # 协议插件服务端口
   http_port: 15002        # HTTP服务端口
-  maxConnections: 100     # 最大连接数
   heartbeatTimeout: 60    # 心跳超时时间(秒)
 ```
 

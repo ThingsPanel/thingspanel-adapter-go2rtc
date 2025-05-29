@@ -20,14 +20,17 @@ type PlatformClient struct {
 	logger      *logrus.Logger
 	deviceCache map[string]*types.Device
 	cacheMutex  sync.RWMutex
+	Config      Config
 }
 
 // Config 平台配置
 type Config struct {
-	BaseURL      string
-	MQTTBroker   string
-	MQTTUsername string
-	MQTTPassword string
+	BaseURL           string
+	MQTTBroker        string
+	MQTTUsername      string
+	MQTTPassword      string
+	ServiceIdentifier string
+	TemplateSecret    string
 }
 
 // NewPlatformClient 创建平台客户端
@@ -37,8 +40,11 @@ func NewPlatformClient(config Config, logger *logrus.Logger) (*PlatformClient, e
 		MQTTBroker:   config.MQTTBroker,
 		MQTTUsername: config.MQTTUsername,
 		MQTTPassword: config.MQTTPassword,
-		MQTTClientID: fmt.Sprintf("Template-%d", time.Now().Unix()),
+		MQTTClientID: fmt.Sprintf("%s-%d", config.ServiceIdentifier, time.Now().Unix()),
 	}
+
+	// 打印sdkConfig
+	logrus.Infof("sdkConfig: %+v", sdkConfig)
 
 	sdkClient, err := client.NewClient(sdkConfig)
 	if err != nil {
@@ -50,6 +56,7 @@ func NewPlatformClient(config Config, logger *logrus.Logger) (*PlatformClient, e
 	}
 
 	return &PlatformClient{
+		Config:      config,
 		sdkClient:   sdkClient,
 		logger:      logger,
 		deviceCache: make(map[string]*types.Device),
@@ -60,7 +67,7 @@ func NewPlatformClient(config Config, logger *logrus.Logger) (*PlatformClient, e
 func (p *PlatformClient) GetDevice(deviceNumber string) (*types.Device, error) {
 	// 先查缓存
 	p.cacheMutex.RLock()
-	if device, ok := p.deviceCache[deviceNumber]; ok {
+	if device, ok := p.deviceCache[deviceNumber]; ok && device.ID != "" {
 		p.cacheMutex.RUnlock()
 		return device, nil
 	}
@@ -76,6 +83,28 @@ func (p *PlatformClient) GetDevice(deviceNumber string) (*types.Device, error) {
 		return nil, err
 	}
 
+	logrus.Debugf("resp: %+v", resp)
+	if resp.Data.ID == "" {
+		// 动态注册
+		dynamicAuthData, err := p.DynamicRegister(deviceNumber)
+		if err != nil {
+			return nil, err
+		}
+
+		if dynamicAuthData.DeviceID == "" {
+			return nil, fmt.Errorf("设备动态注册失败")
+		}
+
+		// 再次查询
+		resp, err = p.sdkClient.Device().GetDeviceConfig(context.Background(), req)
+		if err != nil {
+			return nil, err
+		}
+		if resp.Data.ID == "" {
+			return nil, fmt.Errorf("设备动态注册成功，但查询失败")
+		}
+	}
+
 	// 更新缓存
 	p.cacheMutex.Lock()
 	p.deviceCache[deviceNumber] = &resp.Data
@@ -84,10 +113,26 @@ func (p *PlatformClient) GetDevice(deviceNumber string) (*types.Device, error) {
 	return &resp.Data, nil
 }
 
+// 动态注册
+func (p *PlatformClient) DynamicRegister(deviceNumber string) (*types.DeviceDynamicAuthData, error) {
+	req := &client.DeviceDynamicAuthRequest{
+		TemplateSecret: p.Config.TemplateSecret,
+		DeviceNumber:   deviceNumber,
+		DeviceName:     p.Config.ServiceIdentifier + "-" + deviceNumber,
+	}
+
+	resp, err := p.sdkClient.Device().DeviceDynamicAuth(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &resp.Data, nil
+}
+
 // 获取服务接入点列表
 func (p *PlatformClient) GetServiceAccessPoints() ([]types.ServiceAccessRsp, error) {
 	req := &client.ServiceAccessRequest{
-		ServiceIdentifier: "OPC-UA",
+		ServiceIdentifier: p.Config.ServiceIdentifier,
 	}
 	resp, err := p.sdkClient.Service().GetServiceAccessList(context.Background(), req)
 	if err != nil {
@@ -168,9 +213,16 @@ func (p *PlatformClient) Close() {
 }
 
 func (p *PlatformClient) SendDeviceStatus(deviceID string, msg interface{}) error {
-	logrus.WithField("deviceID", deviceID).Debugf("发送设备状态: %s", msg)
+	logrus.WithField("deviceID", deviceID).Debugf("发送设备状态: %v", msg)
 
-	return p.sdkClient.MQTT().Publish("devices/status/"+deviceID, 1, msg)
+	// 将消息转换为JSON字符串
+	statusData, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("设备状态序列化失败: %v", err)
+	}
+
+	// 发送JSON字符串
+	return p.sdkClient.MQTT().Publish("devices/status/"+deviceID, 2, string(statusData))
 }
 
 // SendHeartbeat 发送插件心跳

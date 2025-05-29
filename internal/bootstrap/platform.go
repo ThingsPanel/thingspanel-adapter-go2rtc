@@ -11,12 +11,20 @@ import (
 
 // InitPlatformClient 初始化平台客户端
 func InitPlatformClient(cfg *config.PlatformConfig) (*platform.PlatformClient, error) {
+	// 调试信息
+	logrus.WithFields(logrus.Fields{
+		"cfg_URL":        cfg.URL,
+		"cfg_MQTTBroker": cfg.MQTTBroker,
+	}).Info("平台客户端配置检查")
+
 	// 简化日志，去掉"正在初始化"的冗余信息
 	platformClient, err := platform.NewPlatformClient(platform.Config{
-		BaseURL:      cfg.URL,
-		MQTTBroker:   cfg.MQTTBroker,
-		MQTTUsername: cfg.MQTTUsername,
-		MQTTPassword: cfg.MQTTPassword,
+		BaseURL:           cfg.URL,
+		MQTTBroker:        cfg.MQTTBroker,
+		MQTTUsername:      cfg.MQTTUsername,
+		MQTTPassword:      cfg.MQTTPassword,
+		ServiceIdentifier: cfg.ServiceIdentifier,
+		TemplateSecret:    cfg.TemplateSecret,
 	}, logrus.StandardLogger())
 
 	if err != nil {

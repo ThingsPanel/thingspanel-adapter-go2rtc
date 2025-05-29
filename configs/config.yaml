@@ -2,20 +2,20 @@
 server:
   port: 15001
   http_port: 15002
-  maxConnections: 100
-  heartbeatTimeout: 60 
+  heartbeatTimeout: 60 # 心跳超时时间(秒)
 
 platform:
-  url: "http://47.92.253.145:9999"
-  mqtt_broker: "mqtt://47.92.253.145:1883"
+  url: "http://47.104.235.67:19999"
+  mqtt_broker: "mqtt://47.104.235.67:11883"
   mqtt_username: "root"
   mqtt_password: "root"
-  service_identifier: "Template"  # 添加服务标识符
+  service_identifier: "OG-SZ501"  # 添加服务标识符
+  template_secret: "e43823f2-7a91-133b-13d1-612df60fbfdc"  # 模板密钥，用于动态注册
 
 log:
   level: "debug"
   filePath: "logs/app.log"
-  enableFile: true  # 是否将日志输出到文件
+  enableFile: false  # 是否将日志输出到文件
   maxSize: 100
   maxBackups: 3
   maxAge: 28
