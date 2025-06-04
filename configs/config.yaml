@@ -20,3 +20,29 @@ log:
   maxBackups: 3
   maxAge: 28
   compress: true # 是否压缩日志文件
+  
+  # 设备独立日志配置
+  device_log:
+    enabled: true                    # 是否启用设备独立日志
+    base_dir: "logs/devices"         # 设备日志基础目录
+    max_size: 10                     # 单个设备日志文件最大大小(MB)
+    max_age: 30                      # 设备日志文件保留天数
+    compress: true                   # 是否压缩设备日志文件
+
+# 协议配置 - 每个协议使用独立端口，目前该中间件只支持同时运行一个协议
+protocols:
+  sensor_protocol:
+    enabled: true
+    port: 15003
+  
+  gateway_protocol:
+    enabled: false
+    port: 15004
+    
+  simple_protocol:
+    enabled: false
+    port: 15005
+    
+  complex_protocol:
+    enabled: false
+    port: 15006

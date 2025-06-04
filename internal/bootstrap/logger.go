@@ -20,8 +20,23 @@ func InitLogger(cfg *config.LogConfig) error {
 		}
 	}
 
-	// 初始化日志配置
+	// 初始化主日志配置
 	logger.InitLogger(cfg)
+
+	// 初始化设备独立日志管理器
+	deviceLogConfig := logger.DeviceLoggerConfig{
+		Enabled:  cfg.DeviceLog.Enabled,
+		BaseDir:  cfg.DeviceLog.BaseDir,
+		MaxSize:  cfg.DeviceLog.MaxSize,
+		MaxAge:   cfg.DeviceLog.MaxAge,
+		Compress: cfg.DeviceLog.Compress,
+	}
+
+	if err := logger.InitDeviceLogger(deviceLogConfig); err != nil {
+		logrus.WithError(err).Error("初始化设备日志管理器失败")
+		return fmt.Errorf("初始化设备日志管理器失败: %v", err)
+	}
+
 	return nil
 }
 

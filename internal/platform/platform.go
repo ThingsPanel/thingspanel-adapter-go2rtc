@@ -14,6 +14,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// 设备状态常量
+const (
+	DeviceStatusOffline = 0 // 设备离线
+	DeviceStatusOnline  = 1 // 设备在线
+)
+
 // PlatformClient 平台客户端
 type PlatformClient struct {
 	sdkClient   *client.Client
@@ -212,17 +218,36 @@ func (p *PlatformClient) Close() {
 	}
 }
 
-func (p *PlatformClient) SendDeviceStatus(deviceID string, msg interface{}) error {
-	logrus.WithField("deviceID", deviceID).Debugf("发送设备状态: %v", msg)
-
-	// 将消息转换为JSON字符串
-	statusData, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("设备状态序列化失败: %v", err)
+// SendDeviceStatus 发送设备状态
+// status: 设备状态，0=离线，1=在线
+func (p *PlatformClient) SendDeviceStatus(deviceID string, status int) error {
+	// 验证状态值
+	if status != DeviceStatusOffline && status != DeviceStatusOnline {
+		return fmt.Errorf("无效的设备状态值: %d，只支持 0(离线) 或 1(在线)", status)
 	}
 
-	// 发送JSON字符串
-	return p.sdkClient.MQTT().Publish("devices/status/"+deviceID, 2, string(statusData))
+	payload, err := json.Marshal(map[string]interface{}{
+		"device_id": deviceID,
+		"values":    status,
+	})
+	if err != nil {
+		return fmt.Errorf("序列化状态消息失败: %v", err)
+	}
+
+	if err := p.sdkClient.MQTT().Publish("devices/status", 1, string(payload)); err != nil {
+		return fmt.Errorf("发送状态消息失败: %v", err)
+	}
+
+	statusText := "离线"
+	if status == DeviceStatusOnline {
+		statusText = "在线"
+	}
+	p.logger.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"status":    statusText,
+	}).Debug("设备状态已发送")
+
+	return nil
 }
 
 // SendHeartbeat 发送插件心跳

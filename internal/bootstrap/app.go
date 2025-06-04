@@ -6,6 +6,8 @@ import (
 	"time"
 	"tp-plugin/internal/config"
 	"tp-plugin/internal/platform"
+	"tp-plugin/internal/protocol"
+	"tp-plugin/internal/protocol/plugins/examples"
 
 	"github.com/sirupsen/logrus"
 )
@@ -14,6 +16,7 @@ import (
 type AppContext struct {
 	Config          *config.Config
 	PlatformClient  *platform.PlatformClient
+	ProtocolManager *protocol.ProtocolManager
 	ctx             context.Context
 	cancel          context.CancelFunc
 	heartbeatTicker *time.Ticker // 心跳定时器
@@ -23,6 +26,13 @@ type AppContext struct {
 func (app *AppContext) Shutdown() {
 	if app.cancel != nil {
 		app.cancel()
+	}
+
+	// 停止协议管理器
+	if app.ProtocolManager != nil {
+		if err := app.ProtocolManager.StopAll(); err != nil {
+			logrus.WithError(err).Error("停止协议管理器失败")
+		}
 	}
 
 	if app.PlatformClient != nil {
@@ -92,8 +102,8 @@ func StartApp(configPath string) (*AppContext, error) {
 		}
 	}()
 
-	// 6. 初始化OG-SZ501协议处理组件
-	if err := initializeOGSZ501Protocol(app, cfg); err != nil {
+	// 6. 初始化协议管理器
+	if err := initializeProtocols(app, cfg); err != nil {
 		app.Shutdown()
 		return nil, err
 	}
@@ -108,27 +118,31 @@ func StartApp(configPath string) (*AppContext, error) {
 	return app, nil
 }
 
-// initializeOGSZ501Protocol 初始化OG-SZ501协议处理组件
-func initializeOGSZ501Protocol(app *AppContext, cfg *config.Config) error {
-	// 不要创建新logger，使用全局配置好的logger
-	// logger := logrus.New()
+// initializeProtocols 初始化协议管理器和所有启用的协议
+func initializeProtocols(app *AppContext, cfg *config.Config) error {
+	// 创建协议管理器
+	manager := protocol.NewManager(app.PlatformClient, logrus.StandardLogger())
 
-	// 传递全局logger
-	// tcpServer := transport.NewTCPServer(cfg.Server.Port, logrus.StandardLogger(), app.PlatformClient)
-	// app.TCPServer = tcpServer
+	// 注册传感器协议
+	if cfg.Protocols.SensorProtocol.Enabled {
+		handler := examples.NewSensorProtocolHandler(cfg.Protocols.SensorProtocol.Port)
+		if err := manager.RegisterProtocol(handler); err != nil {
+			return err
+		}
+		logrus.Infof("传感器协议已启用，端口: %d", cfg.Protocols.SensorProtocol.Port)
+	}
 
-	// // 2. 创建设备处理器
-	// deviceHandler := handler.NewDeviceHandler(tcpServer, app.PlatformClient, logrus.StandardLogger())
-	// app.DeviceHandler = deviceHandler
-
-	// 3. 设置数据包处理回调 - 这里建立了两者的联系
-	// tcpServer.SetPacketHandler(deviceHandler.HandleData)
-
-	// // 4. 启动TCP服务器
-	// if err := tcpServer.Start(); err != nil {
-	// 	return err
+	// TODO: 在这里添加更多协议注册
+	// if cfg.Protocols.GatewayProtocol.Enabled {
+	//     handler := gateway.NewGatewayProtocolHandler(cfg.Protocols.GatewayProtocol.Port)
+	//     if err := manager.RegisterProtocol(handler); err != nil {
+	//         return err
+	//     }
+	//     logrus.Infof("网关协议已启用，端口: %d", cfg.Protocols.GatewayProtocol.Port)
 	// }
 
-	logrus.Infof("OG-SZ501协议服务器已启动，监听端口: %d", cfg.Server.Port)
+	app.ProtocolManager = manager
+
+	logrus.Info("协议管理器初始化完成")
 	return nil
 }

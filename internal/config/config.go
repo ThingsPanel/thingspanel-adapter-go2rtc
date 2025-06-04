@@ -2,9 +2,10 @@
 package config
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Platform PlatformConfig `mapstructure:"platform"`
-	Log      LogConfig      `mapstructure:"log"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Platform  PlatformConfig  `mapstructure:"platform"`
+	Log       LogConfig       `mapstructure:"log"`
+	Protocols ProtocolsConfig `mapstructure:"protocols"`
 }
 
 type ServerConfig struct {
@@ -30,4 +31,30 @@ type LogConfig struct {
 	MaxBackups int    `mapstructure:"maxBackups"` // 保留的旧日志文件的最大数量
 	MaxAge     int    `mapstructure:"maxAge"`     // 保留日志文件的最大天数
 	Compress   bool   `mapstructure:"compress"`   // 是否压缩旧日志文件
+
+	// 设备独立日志配置
+	DeviceLog DeviceLogConfig `mapstructure:"device_log"`
+}
+
+// DeviceLogConfig 设备日志配置
+type DeviceLogConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`  // 是否启用设备独立日志
+	BaseDir  string `mapstructure:"base_dir"` // 设备日志基础目录
+	MaxSize  int    `mapstructure:"max_size"` // 单个设备日志文件最大大小(MB)
+	MaxAge   int    `mapstructure:"max_age"`  // 设备日志文件保留天数
+	Compress bool   `mapstructure:"compress"` // 是否压缩设备日志文件
+}
+
+// ProtocolsConfig 协议配置
+type ProtocolsConfig struct {
+	SensorProtocol  ProtocolConfig `mapstructure:"sensor_protocol"`
+	GatewayProtocol ProtocolConfig `mapstructure:"gateway_protocol"`
+	SimpleProtocol  ProtocolConfig `mapstructure:"simple_protocol"`
+	ComplexProtocol ProtocolConfig `mapstructure:"complex_protocol"`
+}
+
+// ProtocolConfig 单个协议配置
+type ProtocolConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	Port    int  `mapstructure:"port"`
 }

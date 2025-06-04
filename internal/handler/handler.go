@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	formjson "tp-plugin/internal/form_json"
+	"tp-plugin/internal/pkg/logger"
 	"tp-plugin/internal/platform"
 
 	"strings"
@@ -139,7 +140,7 @@ func (h *HTTPHandler) handleDeviceDisconnect(req *handler.DeviceDisconnectReques
 	}
 
 	// 发送设备离线状态
-	// err = h.platform.SendDeviceStatus(req.DeviceID, 0)
+	// err = h.platform.SendDeviceStatus(req.DeviceID, platform.DeviceStatusOffline)
 	// if err != nil {
 	// 	h.logger.WithError(err).Error("发送设备离线状态失败")
 	// 	return err
@@ -186,7 +187,7 @@ func (h *HTTPHandler) handleGetDeviceList(req *handler.GetDeviceListRequest) (*h
 		"page_size":          req.PageSize,
 	}).Info("收到获取设备列表请求")
 
-	// 讲req的Voucher解析到formjson.SVCRForm结构体
+	// 解析req的Voucher到formjson.SVCRForm结构体
 	var svcrForm formjson.SVCRForm
 	if err := json.Unmarshal([]byte(req.Voucher), &svcrForm); err != nil {
 		h.logger.WithError(err).Error("解析凭证失败")
@@ -197,6 +198,10 @@ func (h *HTTPHandler) handleGetDeviceList(req *handler.GetDeviceListRequest) (*h
 		Code:    200,
 		Message: "获取成功",
 	}
+
+	// 记录设备日志统计信息到主日志
+	deviceLogStats := logger.GetDeviceLogStats()
+	h.logger.WithField("device_log_stats", deviceLogStats).Debug("设备日志统计信息")
 
 	return &rsp, nil
 }
