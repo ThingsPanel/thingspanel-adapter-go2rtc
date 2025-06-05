@@ -9,7 +9,7 @@ platform:
   mqtt_broker: "mqtt://47.104.235.67:11883"
   mqtt_username: "root"
   mqtt_password: "root"
-  service_identifier: "OG-SZ501"  # 添加服务标识符
+  service_identifier: "OG-SZ501"  # 服务标识符
   template_secret: "e43823f2-7a91-133b-13d1-612df60fbfdc"  # 模板密钥，用于动态注册
 
 log:
@@ -28,21 +28,3 @@ log:
     max_size: 10                     # 单个设备日志文件最大大小(MB)
     max_age: 30                      # 设备日志文件保留天数
     compress: true                   # 是否压缩设备日志文件
-
-# 协议配置 - 每个协议使用独立端口，目前该中间件只支持同时运行一个协议
-protocols:
-  sensor_protocol:
-    enabled: true
-    port: 15003
-  
-  gateway_protocol:
-    enabled: false
-    port: 15004
-    
-  simple_protocol:
-    enabled: false
-    port: 15005
-    
-  complex_protocol:
-    enabled: false
-    port: 15006

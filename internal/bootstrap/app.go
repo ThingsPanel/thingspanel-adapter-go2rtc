@@ -16,7 +16,7 @@ import (
 type AppContext struct {
 	Config          *config.Config
 	PlatformClient  *platform.PlatformClient
-	ProtocolManager *protocol.ProtocolManager
+	ProtocolHandler *protocol.SingleProtocolHandler
 	ctx             context.Context
 	cancel          context.CancelFunc
 	heartbeatTicker *time.Ticker // 心跳定时器
@@ -28,10 +28,10 @@ func (app *AppContext) Shutdown() {
 		app.cancel()
 	}
 
-	// 停止协议管理器
-	if app.ProtocolManager != nil {
-		if err := app.ProtocolManager.StopAll(); err != nil {
-			logrus.WithError(err).Error("停止协议管理器失败")
+	// 停止协议处理器
+	if app.ProtocolHandler != nil {
+		if err := app.ProtocolHandler.Stop(); err != nil {
+			logrus.WithError(err).Error("停止协议处理器失败")
 		}
 	}
 
@@ -102,8 +102,8 @@ func StartApp(configPath string) (*AppContext, error) {
 		}
 	}()
 
-	// 6. 初始化协议管理器
-	if err := initializeProtocols(app, cfg); err != nil {
+	// 6. 初始化单协议处理器
+	if err := initializeProtocol(app, cfg); err != nil {
 		app.Shutdown()
 		return nil, err
 	}
@@ -118,31 +118,25 @@ func StartApp(configPath string) (*AppContext, error) {
 	return app, nil
 }
 
-// initializeProtocols 初始化协议管理器和所有启用的协议
-func initializeProtocols(app *AppContext, cfg *config.Config) error {
-	// 创建协议管理器
-	manager := protocol.NewManager(app.PlatformClient, logrus.StandardLogger())
+// initializeProtocol 初始化单协议处理器
+func initializeProtocol(app *AppContext, cfg *config.Config) error {
+	// 创建协议处理器（示例：使用传感器协议）
+	// TODO: 根据你的协议替换这里的实现
+	protocolHandler := examples.NewSensorProtocolHandler(cfg.Server.Port)
 
-	// 注册传感器协议
-	if cfg.Protocols.SensorProtocol.Enabled {
-		handler := examples.NewSensorProtocolHandler(cfg.Protocols.SensorProtocol.Port)
-		if err := manager.RegisterProtocol(handler); err != nil {
-			return err
-		}
-		logrus.Infof("传感器协议已启用，端口: %d", cfg.Protocols.SensorProtocol.Port)
+	// 创建单协议处理器
+	singleHandler := protocol.NewSingleProtocolHandler(
+		protocolHandler,
+		app.PlatformClient,
+		logrus.StandardLogger(),
+	)
+
+	// 启动协议
+	if err := singleHandler.Start(); err != nil {
+		return err
 	}
 
-	// TODO: 在这里添加更多协议注册
-	// if cfg.Protocols.GatewayProtocol.Enabled {
-	//     handler := gateway.NewGatewayProtocolHandler(cfg.Protocols.GatewayProtocol.Port)
-	//     if err := manager.RegisterProtocol(handler); err != nil {
-	//         return err
-	//     }
-	//     logrus.Infof("网关协议已启用，端口: %d", cfg.Protocols.GatewayProtocol.Port)
-	// }
-
-	app.ProtocolManager = manager
-
-	logrus.Info("协议管理器初始化完成")
+	app.ProtocolHandler = singleHandler
+	logrus.Infof("单协议处理器初始化完成 - %s (v%s)", protocolHandler.Name(), protocolHandler.Version())
 	return nil
 }

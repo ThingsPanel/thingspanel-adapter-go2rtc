@@ -2,12 +2,12 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // DeviceLogger 设备日志管理器
@@ -57,22 +57,43 @@ func InitDeviceLogger(config DeviceLoggerConfig) error {
 			config.MaxAge = 7 // 默认保留7天
 		}
 
+		// 获取工作目录，并构建绝对路径
+		workDir, err := os.Getwd()
+		if err != nil {
+			initErr = fmt.Errorf("获取当前工作目录失败: %v", err)
+			return
+		}
+
+		// 如果配置的路径不是绝对路径，则基于项目根目录构建
+		var logDir string
+		if filepath.IsAbs(config.BaseDir) {
+			logDir = config.BaseDir
+		} else {
+			// 如果当前在cmd目录下运行，需要回到项目根目录
+			if filepath.Base(workDir) == "cmd" {
+				projectRoot := filepath.Dir(workDir)
+				logDir = filepath.Join(projectRoot, config.BaseDir)
+			} else {
+				logDir = filepath.Join(workDir, config.BaseDir)
+			}
+		}
+
 		// 确保日志目录存在
-		if err := os.MkdirAll(config.BaseDir, 0755); err != nil {
+		if err := os.MkdirAll(logDir, 0755); err != nil {
 			initErr = fmt.Errorf("创建设备日志目录失败: %v", err)
 			return
 		}
 
 		globalDeviceLogger = &DeviceLogger{
 			loggers:  make(map[string]*logrus.Logger),
-			baseDir:  config.BaseDir,
+			baseDir:  logDir,
 			enabled:  true,
 			maxSize:  config.MaxSize,
 			maxAge:   config.MaxAge,
 			compress: config.Compress,
 		}
 
-		logrus.WithField("base_dir", config.BaseDir).Info("设备独立日志管理器已启用")
+		logrus.WithField("base_dir", logDir).Info("设备独立日志管理器已启用")
 	})
 
 	return initErr
@@ -109,20 +130,25 @@ func (dl *DeviceLogger) getOrCreateLogger(deviceNumber string) *logrus.Logger {
 	// 创建设备专用日志文件路径（使用设备编号作为文件名）
 	logFilePath := filepath.Join(dl.baseDir, fmt.Sprintf("%s.log", deviceNumber))
 
-	// 创建lumberjack轮转写入器
-	fileWriter := &lumberjack.Logger{
-		Filename:  logFilePath,
-		MaxSize:   dl.maxSize,
-		MaxAge:    dl.maxAge,
-		Compress:  dl.compress,
-		LocalTime: true,
+	// 创建或打开日志文件
+	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		logrus.WithError(err).Errorf("创建设备日志文件失败: %s", logFilePath)
+		return logrus.StandardLogger() // 降级到标准logger
 	}
+
+	// 添加调试信息
+	logrus.WithFields(logrus.Fields{
+		"device_number": deviceNumber,
+		"log_file":      logFilePath,
+		"file_created":  true,
+	}).Debug("设备日志记录器已创建")
 
 	// 创建新的logger实例
 	deviceLogger := logrus.New()
 
-	// 设置输出 - 只输出到文件，不输出到控制台
-	deviceLogger.SetOutput(fileWriter)
+	// 设置输出 - 直接输出到文件
+	deviceLogger.SetOutput(file)
 
 	// 设置日志级别
 	deviceLogger.SetLevel(logrus.DebugLevel)
@@ -283,7 +309,7 @@ func CleanupDeviceLogger(deviceNumber string) {
 
 	if logger, exists := globalDeviceLogger.loggers[deviceNumber]; exists {
 		// 关闭日志文件
-		if writer, ok := logger.Out.(*lumberjack.Logger); ok {
+		if writer, ok := logger.Out.(io.Closer); ok {
 			writer.Close()
 		}
 		delete(globalDeviceLogger.loggers, deviceNumber)

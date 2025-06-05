@@ -85,28 +85,6 @@ func (h *TCPHandler) acceptConnections() {
 
 // handleConnection 处理连接
 func (h *TCPHandler) handleConnection(conn net.Conn) {
-	// 检查是否为增强协议
-	if enhanced, ok := h.handler.(EnhancedProtocolHandler); ok {
-		// 使用增强协议的自定义连接处理
-		if err := enhanced.OnConnectionEstablished(conn); err != nil {
-			h.logger.WithError(err).Error("连接建立事件处理失败")
-		}
-
-		if err := enhanced.HandleConnection(conn); err != nil {
-			h.logger.WithError(err).Error("增强协议连接处理失败")
-		}
-
-		if err := enhanced.OnConnectionClosed(conn); err != nil {
-			h.logger.WithError(err).Error("连接关闭事件处理失败")
-		}
-	} else {
-		// 使用默认的简单协议处理
-		h.handleSimpleProtocol(conn)
-	}
-}
-
-// handleSimpleProtocol 简单协议的默认处理逻辑
-func (h *TCPHandler) handleSimpleProtocol(conn net.Conn) {
 	defer func() {
 		h.notifyDeviceOffline(conn)
 		conn.Close()

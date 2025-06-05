@@ -21,31 +21,17 @@
 
 ## 快速开始
 
-### 1. 选择协议类型
-
-#### 简单协议（推荐，90%的情况）
+### 1. 协议开发
 
 适用于：传感器数据采集、简单设备控制等无状态协议
 
 **特点：**
 - 无需维护连接状态
 - 数据包相对简单
-- 设备ID容易提取
+- 设备编号容易提取
 - 消息类型单一
 
-#### 复杂协议（5%的情况）
-
-适用于：网关协议、多消息类型、有状态协议
-
-**特点：**
-- 需要连接认证/握手
-- 多种消息类型（心跳、数据、状态等）
-- 维护连接状态和会话信息
-- 复杂的交互逻辑
-
 ### 2. 创建协议实现
-
-#### 简单协议开发
 
 ```bash
 # 1. 复制模板
@@ -133,78 +119,40 @@ func (h *YourProtocolHandler) EncodeCommand(cmd *protocol.Command) ([]byte, erro
 }
 ```
 
-#### 复杂协议开发
+### 3. 初始化协议
 
-```bash
-# 1. 复制模板
-cp -r internal/protocol/plugins/template/complex internal/protocol/plugins/your_protocol
-```
+在 `internal/bootstrap/app.go` 中初始化协议：
 
-**额外需要实现：**
-
-1. **连接处理逻辑**
 ```go
-func (h *YourProtocolHandler) HandleConnection(conn net.Conn) error {
-    // 1. 连接认证/握手
-    deviceID, err := h.authenticateConnection(conn)
-    if err != nil {
+func initializeProtocol(app *AppContext, cfg *config.Config) error {
+    // 创建你的协议处理器
+    protocolHandler := your_protocol.NewHandler(cfg.Server.Port)
+    
+    // 创建单协议处理器
+    singleHandler := protocol.NewSingleProtocolHandler(
+        protocolHandler, 
+        app.PlatformClient, 
+        logrus.StandardLogger(),
+    )
+    
+    // 启动协议
+    if err := singleHandler.Start(); err != nil {
         return err
     }
     
-    // 2. 创建会话
-    session := h.createSession(deviceID, conn)
-    defer h.cleanupSession(deviceID)
-    
-    // 3. 消息处理循环
-    for {
-        // 读取数据
-        // 处理不同类型的消息
-        // 发送响应
-    }
-}
-```
-
-2. **会话管理**
-```go
-type Session struct {
-    DeviceID      string
-    Conn          net.Conn
-    LastHeartbeat time.Time
-    Authenticated bool
-    // ... 其他状态信息
-}
-```
-
-### 3. 注册协议
-
-在 `internal/bootstrap/app.go` 中注册协议：
-
-```go
-func initializeProtocols(app *AppContext, cfg *config.Config) error {
-    manager := protocol.NewManager(app.PlatformClient, logrus.StandardLogger())
-    
-    // 注册你的协议
-    if cfg.Protocols.YourProtocol.Enabled {
-        handler := your_protocol.NewHandler(cfg.Protocols.YourProtocol.Port)
-        if err := manager.RegisterProtocol(handler); err != nil {
-            return fmt.Errorf("注册协议失败: %w", err)
-        }
-    }
-    
-    app.ProtocolManager = manager
+    app.ProtocolHandler = singleHandler
     return nil
 }
 ```
 
-### 4. 添加配置
+### 4. 配置端口
 
-在配置文件中添加协议配置：
+在配置文件中设置协议端口：
 
 ```yaml
-protocols:
-  your_protocol:
-    enabled: true
-    port: 15001  # 协议专用端口
+server:
+  port: 15001      # 协议端口
+  http_port: 15002 # HTTP管理端口
 ```
 
 ## 框架功能
@@ -247,11 +195,6 @@ protocols:
    - 控制指令格式构建
    - 参数验证和处理
 
-3. **协议特定逻辑**（复杂协议）
-   - 连接认证和握手
-   - 会话状态管理
-   - 多消息类型处理
-
 ## 示例参考
 
 ### 完整示例
@@ -267,11 +210,11 @@ protocols:
 
 传感器协议测试数据包：
 ```
-设备ID=1, 温度=25.6°C, 湿度=60.5%, 电压=3.30V, 电量=85%
+设备编号=1, 温度=25.6°C, 湿度=60.5%, 电压=3.30V, 电量=85%
 原始数据: 00000001 0100 025D 014A 0055 A8
 
 解析结果：
-- 设备ID: 1
+- 设备编号: 1
 - 温度: 25.6°C
 - 湿度: 60.5%
 - 电压: 3.30V
@@ -290,7 +233,7 @@ go run cmd/main.go
 
 协议启动后会看到类似日志：
 ```
-INFO[0001] 协议 SensorProtocol (v1.0.0) 已注册并启动，端口: 15001
+INFO[0001] 协议 SensorProtocol (v1.0.0) 已启动，端口: 15001
 INFO[0001] 协议 SensorProtocol 在端口 15001 启动成功
 ```
 
@@ -320,13 +263,10 @@ INFO[0010] 设备数据: 00000001 - map[battery:85 humidity:60.5 temperature:25.
 **A:** 检查数据包格式是否与 `ParseData` 方法中的解析逻辑匹配。
 
 ### Q: 端口冲突？
-**A:** 确保每个协议使用不同的端口，检查配置文件中的端口设置。
+**A:** 单协议方案只使用一个端口，检查配置文件中的server.port设置。
 
 ### Q: 设备频繁上下线？
 **A:** 检查网络连接稳定性，或者调整连接超时时间。
-
-### Q: 何时使用复杂协议？
-**A:** 只有当协议需要连接认证、多消息类型处理、会话状态管理时才使用。90%的情况下简单协议就足够了。
 
 ## 最佳实践
 
@@ -357,18 +297,18 @@ INFO[0010] 设备数据: 00000001 - map[battery:85 humidity:60.5 temperature:25.
 
 ## 架构优势
 
-1. **极其简单** - 大多数协议只需要实现2个方法
-2. **完全通用** - 不绑定任何特定协议
-3. **端口隔离** - 避免所有协议识别复杂性
+1. **极其简单** - 只需要实现3个核心方法
+2. **完全专用** - 一个中间件专注于一个协议
+3. **配置简单** - 只需要配置一个端口
 4. **自动监控** - 设备上下线自动通知平台
-5. **渐进增强** - 简单协议保持简单，复杂需求可扩展
-6. **故障隔离** - 协议独立运行，互不影响
+5. **部署简单** - 单容器部署，独立运行
+6. **故障隔离** - 单协议故障不影响其他协议
 
 ## 总结
 
-这个架构的核心思想是：**让简单的事情保持简单，让复杂的事情成为可能**
+这个架构的核心思想是：**一个中间件只做一件事，并且做好这件事**
 
-对于大多数IoT协议开发，你只需要关注数据解析逻辑，其他一切都由框架自动处理。
+对于IoT协议开发，你现在只需要专注于协议解析逻辑，其他一切都极其简单。
 
 ## 核心接口
 

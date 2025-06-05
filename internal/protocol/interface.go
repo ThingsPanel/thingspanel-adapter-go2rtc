@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"net"
 	"time"
 )
 
@@ -25,37 +24,22 @@ type Command struct {
 	Timeout      time.Duration `json:"timeout"`
 }
 
-// ProtocolHandler 基础协议处理器接口
-// 适用于90%的无状态、简单数据交互协议
+// ProtocolHandler 协议处理器接口
+// 90%的协议只需要实现这个接口
 type ProtocolHandler interface {
 	// 协议基本信息
-	Name() string
-	Version() string
-	Port() int // 协议专用端口
+	Name() string    // 协议名称
+	Version() string // 协议版本
+	Port() int       // 协议端口
 
-	// 核心功能 - 只需要这两个方法！
-	ParseData(data []byte) (*Message, error)    // 解析设备数据
-	EncodeCommand(cmd *Command) ([]byte, error) // 编码控制指令
-
-	// 设备编号提取（从数据包中提取设备编号，注意：不是平台的device_id）
+	// 核心功能 - 只需要这三个方法！
 	ExtractDeviceNumber(data []byte) (string, error) // 从数据包提取设备编号
+	ParseData(data []byte) (*Message, error)         // 解析设备数据
+	EncodeCommand(cmd *Command) ([]byte, error)      // 编码控制指令（可选）
 
 	// 生命周期管理（通常只需要返回nil）
 	Start() error // 启动协议
 	Stop() error  // 停止协议
-}
-
-// EnhancedProtocolHandler 增强协议处理器接口
-// 适用于有状态、多消息类型的复杂协议（5%的情况）
-type EnhancedProtocolHandler interface {
-	ProtocolHandler // 嵌入基础接口
-
-	// 自定义连接处理（替代默认的简单处理逻辑）
-	HandleConnection(conn net.Conn) error // 处理完整连接生命周期
-
-	// 连接事件处理（可选实现）
-	OnConnectionEstablished(conn net.Conn) error // 连接建立时调用
-	OnConnectionClosed(conn net.Conn) error      // 连接关闭时调用
 }
 
 // ProtocolInfo 协议信息

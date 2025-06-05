@@ -2,10 +2,9 @@
 package config
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Platform  PlatformConfig  `mapstructure:"platform"`
-	Log       LogConfig       `mapstructure:"log"`
-	Protocols ProtocolsConfig `mapstructure:"protocols"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Platform PlatformConfig `mapstructure:"platform"`
+	Log      LogConfig      `mapstructure:"log"`
 }
 
 type ServerConfig struct {
@@ -15,12 +14,12 @@ type ServerConfig struct {
 }
 
 type PlatformConfig struct {
-	URL               string `mapstructure:"url"`           // 平台API地址
-	MQTTBroker        string `mapstructure:"mqtt_broker"`   // MQTT服务器地址
-	MQTTUsername      string `mapstructure:"mqtt_username"` // MQTT用户名
-	MQTTPassword      string `mapstructure:"mqtt_password"` // MQTT密码
-	ServiceIdentifier string `mapstructure:"service_identifier"`
-	TemplateSecret    string `mapstructure:"template_secret"` // 模板密钥，用于动态注册
+	URL               string `mapstructure:"url"`                // 平台API地址
+	MQTTBroker        string `mapstructure:"mqtt_broker"`        // MQTT服务器地址
+	MQTTUsername      string `mapstructure:"mqtt_username"`      // MQTT用户名
+	MQTTPassword      string `mapstructure:"mqtt_password"`      // MQTT密码
+	ServiceIdentifier string `mapstructure:"service_identifier"` // 服务标识符
+	TemplateSecret    string `mapstructure:"template_secret"`    // 模板密钥，用于动态注册
 }
 
 type LogConfig struct {
@@ -43,18 +42,4 @@ type DeviceLogConfig struct {
 	MaxSize  int    `mapstructure:"max_size"` // 单个设备日志文件最大大小(MB)
 	MaxAge   int    `mapstructure:"max_age"`  // 设备日志文件保留天数
 	Compress bool   `mapstructure:"compress"` // 是否压缩设备日志文件
-}
-
-// ProtocolsConfig 协议配置
-type ProtocolsConfig struct {
-	SensorProtocol  ProtocolConfig `mapstructure:"sensor_protocol"`
-	GatewayProtocol ProtocolConfig `mapstructure:"gateway_protocol"`
-	SimpleProtocol  ProtocolConfig `mapstructure:"simple_protocol"`
-	ComplexProtocol ProtocolConfig `mapstructure:"complex_protocol"`
-}
-
-// ProtocolConfig 单个协议配置
-type ProtocolConfig struct {
-	Enabled bool `mapstructure:"enabled"`
-	Port    int  `mapstructure:"port"`
 }

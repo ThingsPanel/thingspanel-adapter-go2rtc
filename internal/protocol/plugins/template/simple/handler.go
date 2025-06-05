@@ -16,9 +16,9 @@ import (
 //
 // 开发步骤：
 // 1. 复制此模板到 internal/protocol/plugins/your_protocol/ 目录
-// 2. 根据你的协议格式实现 ParseData 和 ExtractDeviceID 方法
+// 2. 根据你的协议格式实现 ExtractDeviceNumber 和 ParseData 方法
 // 3. 如果设备支持控制指令，实现 EncodeCommand 方法
-// 4. 在 bootstrap/app.go 中注册你的协议
+// 4. 在 bootstrap/app.go 中初始化你的协议
 type SimpleProtocolHandler struct {
 	port int
 }
@@ -45,7 +45,35 @@ func (h *SimpleProtocolHandler) Port() int {
 }
 
 // ============================================================================
-// 核心方法1：解析数据 - 必须实现！
+// 核心方法1：提取设备编号 - 必须实现！
+// ============================================================================
+
+// ExtractDeviceNumber 从数据包中提取设备编号（重要：不是平台的device_id）
+func (h *SimpleProtocolHandler) ExtractDeviceNumber(data []byte) (string, error) {
+	// TODO: 根据你的协议格式提取设备编号
+
+	// 示例：设备编号在数据包的前4个字节
+	if len(data) < 4 {
+		return "", errors.New("数据包太短，无法提取设备编号")
+	}
+
+	// 方式1：二进制格式的设备编号
+	deviceNumber := binary.BigEndian.Uint32(data[0:4])
+	return fmt.Sprintf("%d", deviceNumber), nil
+
+	// 方式2：字符串格式的设备编号（如果协议使用字符串）
+	// if len(data) < 8 {
+	//     return "", errors.New("数据包太短，无法提取设备编号")
+	// }
+	// return string(data[0:8]), nil
+
+	// 方式3：从特定位置提取设备编号
+	// deviceNumberBytes := data[startPos:endPos]
+	// return string(deviceNumberBytes), nil
+}
+
+// ============================================================================
+// 核心方法2：解析数据 - 必须实现！
 // ============================================================================
 
 func (h *SimpleProtocolHandler) ParseData(data []byte) (*protocol.Message, error) {
@@ -82,7 +110,7 @@ func (h *SimpleProtocolHandler) ParseData(data []byte) (*protocol.Message, error
 }
 
 // ============================================================================
-// 核心方法2：编码指令 - 如果设备不支持控制，返回错误即可
+// 核心方法3：编码指令 - 如果设备不支持控制，返回错误即可
 // ============================================================================
 
 func (h *SimpleProtocolHandler) EncodeCommand(cmd *protocol.Command) ([]byte, error) {
@@ -106,45 +134,17 @@ func (h *SimpleProtocolHandler) EncodeCommand(cmd *protocol.Command) ([]byte, er
 }
 
 // ============================================================================
-// 设备ID提取 - 必须实现！
-// ============================================================================
-
-// ExtractDeviceNumber 从数据包中提取设备编号（重要：不是平台的device_id）
-func (h *SimpleProtocolHandler) ExtractDeviceNumber(data []byte) (string, error) {
-	// TODO: 根据你的协议格式提取设备编号
-
-	// 示例：设备编号在数据包的前4个字节
-	if len(data) < 4 {
-		return "", errors.New("数据包太短，无法提取设备编号")
-	}
-
-	// 方式1：二进制格式的设备编号
-	deviceNumber := binary.BigEndian.Uint32(data[0:4])
-	return fmt.Sprintf("%d", deviceNumber), nil
-
-	// 方式2：字符串格式的设备编号（如果协议使用字符串）
-	// if len(data) < 8 {
-	//     return "", errors.New("数据包太短，无法提取设备编号")
-	// }
-	// return string(data[0:8]), nil
-
-	// 方式3：从特定位置提取设备编号
-	// deviceNumberBytes := data[startPos:endPos]
-	// return string(deviceNumberBytes), nil
-}
-
-// ============================================================================
 // 生命周期管理 - 通常只需要打印日志
 // ============================================================================
 
 func (h *SimpleProtocolHandler) Start() error {
-	logrus.Infof("简单协议 %s 启动，端口: %d", h.Name(), h.port)
+	logrus.Infof("协议 %s 启动，端口: %d", h.Name(), h.port)
 	// TODO: 如果需要额外的初始化工作，在这里实现
 	return nil
 }
 
 func (h *SimpleProtocolHandler) Stop() error {
-	logrus.Infof("简单协议 %s 停止", h.Name())
+	logrus.Infof("协议 %s 停止", h.Name())
 	// TODO: 如果需要清理资源，在这里实现
 	return nil
 }
@@ -230,8 +230,8 @@ func calculateChecksum(data []byte) byte {
    - Version(): 协议版本
    - Port(): 协议端口
 
-2. 实现ExtractDeviceID方法
-   - 这是最重要的方法，必须能从数据包中提取设备ID
+2. 实现ExtractDeviceNumber方法
+   - 这是最重要的方法，必须能从数据包中提取设备编号
    - 提取失败时，设备无法上线
 
 3. 实现ParseData方法
@@ -243,25 +243,32 @@ func calculateChecksum(data []byte) byte {
    - 如果设备不支持控制，返回错误即可
    - 如果支持，根据cmd.Action构建相应指令
 
-5. 在bootstrap/app.go中注册协议：
+5. 在bootstrap/app.go中初始化协议：
    ```go
-   if cfg.Protocols.YourProtocol.Enabled {
-       handler := your_protocol.NewHandler(cfg.Protocols.YourProtocol.Port)
-       manager.RegisterProtocol(handler)
-   }
+   // 创建你的协议处理器
+   protocolHandler := your_protocol.NewHandler(cfg.Server.Port)
+
+   // 创建单协议处理器
+   singleHandler := protocol.NewSingleProtocolHandler(
+       protocolHandler,
+       app.PlatformClient,
+       logrus.StandardLogger(),
+   )
+
+   // 启动协议
+   singleHandler.Start()
    ```
 
-6. 在配置文件中添加协议配置：
+6. 在配置文件中设置协议端口：
    ```yaml
-   protocols:
-     your_protocol:
-       enabled: true
-       port: 15001
+   server:
+     port: 15001  # 协议端口
    ```
 
 注意事项：
-- 设备ID提取失败时，设备无法正常上线
+- 设备编号提取失败时，设备无法正常上线
 - 数据解析失败时，只会记录日志，不会断开连接
 - 框架会自动处理设备上下线通知
 - 框架会自动发送数据到ThingsPanel平台
+- 一个中间件只处理一个协议，配置简单
 */

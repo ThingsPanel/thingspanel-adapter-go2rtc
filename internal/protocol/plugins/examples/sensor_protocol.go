@@ -288,19 +288,21 @@ func (h *SensorProtocolHandler) calculateChecksum(data []byte) byte {
 
 4. 使用示例：
    ```go
-   // 在bootstrap/app.go中注册
-   if cfg.Protocols.SensorProtocol.Enabled {
-       handler := examples.NewSensorProtocolHandler(cfg.Protocols.SensorProtocol.Port)
-       manager.RegisterProtocol(handler)
-   }
+   // 在bootstrap/app.go中初始化
+   protocolHandler := examples.NewSensorProtocolHandler(cfg.Server.Port)
+   singleHandler := protocol.NewSingleProtocolHandler(
+       protocolHandler,
+       app.PlatformClient,
+       logrus.StandardLogger(),
+   )
+   singleHandler.Start()
    ```
 
 5. 配置示例：
    ```yaml
-   protocols:
-     sensor_protocol:
-       enabled: true
-       port: 15001
+   server:
+     port: 15001      # 协议端口
+     http_port: 15002 # HTTP管理端口
    ```
 
 6. 测试数据包示例：
