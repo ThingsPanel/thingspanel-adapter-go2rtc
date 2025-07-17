@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,23 +21,38 @@ const (
 	DeviceStatusOnline  = 1 // 设备在线
 )
 
+// CommandProcessorInterface 指令处理器接口
+type CommandProcessorInterface interface {
+	ProcessCommand(deviceID, messageID string, message CommandMessage) error
+}
+
+// CommandMessage 指令消息结构
+type CommandMessage struct {
+	Method string      `json:"method"`
+	Params interface{} `json:"params"`
+}
+
 // PlatformClient 平台客户端
 type PlatformClient struct {
-	sdkClient   *client.Client
-	logger      *logrus.Logger
-	deviceCache map[string]*types.Device
-	cacheMutex  sync.RWMutex
-	Config      Config
+	sdkClient        *client.Client
+	logger           *logrus.Logger
+	deviceCache      map[string]*types.Device // key为deviceNumber
+	deviceIDCache    map[string]*types.Device // key为deviceID
+	cacheMutex       sync.RWMutex
+	Config           Config
+	commandProcessor CommandProcessorInterface
 }
 
 // Config 平台配置
 type Config struct {
-	BaseURL           string
-	MQTTBroker        string
-	MQTTUsername      string
-	MQTTPassword      string
-	ServiceIdentifier string
-	TemplateSecret    string
+	BaseURL               string
+	MQTTBroker            string
+	MQTTUsername          string
+	MQTTPassword          string
+	ServiceIdentifier     string
+	TemplateSecret        string
+	SubTemplateSecret     string
+	GatewayTemplateSecret string
 }
 
 // NewPlatformClient 创建平台客户端
@@ -62,14 +78,15 @@ func NewPlatformClient(config Config, logger *logrus.Logger) (*PlatformClient, e
 	}
 
 	return &PlatformClient{
-		Config:      config,
-		sdkClient:   sdkClient,
-		logger:      logger,
-		deviceCache: make(map[string]*types.Device),
+		Config:        config,
+		sdkClient:     sdkClient,
+		logger:        logger,
+		deviceCache:   make(map[string]*types.Device), // key为deviceNumber
+		deviceIDCache: make(map[string]*types.Device), // key为deviceID
 	}, nil
 }
 
-// GetDevice 获取设备信息(带缓存)
+// GetDevice 通过deviceNumber获取设备信息(带缓存)
 func (p *PlatformClient) GetDevice(deviceNumber string) (*types.Device, error) {
 	// 先查缓存
 	p.cacheMutex.RLock()
@@ -91,29 +108,14 @@ func (p *PlatformClient) GetDevice(deviceNumber string) (*types.Device, error) {
 
 	logrus.Debugf("resp: %+v", resp)
 	if resp.Data.ID == "" {
-		// 动态注册
-		dynamicAuthData, err := p.DynamicRegister(deviceNumber)
-		if err != nil {
-			return nil, err
-		}
-
-		if dynamicAuthData.DeviceID == "" {
-			return nil, fmt.Errorf("设备动态注册失败")
-		}
-
-		// 再次查询
-		resp, err = p.sdkClient.Device().GetDeviceConfig(context.Background(), req)
-		if err != nil {
-			return nil, err
-		}
-		if resp.Data.ID == "" {
-			return nil, fmt.Errorf("设备动态注册成功，但查询失败")
-		}
+		return nil, fmt.Errorf("设备不存在: %s", deviceNumber)
 	}
+	logrus.Infof("设备存在: %s", resp.Data)
 
 	// 更新缓存
 	p.cacheMutex.Lock()
 	p.deviceCache[deviceNumber] = &resp.Data
+	p.deviceIDCache[resp.Data.ID] = &resp.Data
 	p.cacheMutex.Unlock()
 
 	return &resp.Data, nil
@@ -130,6 +132,59 @@ func (p *PlatformClient) DynamicRegister(deviceNumber string) (*types.DeviceDyna
 	resp, err := p.sdkClient.Device().DeviceDynamicAuth(context.Background(), req)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.Code != 200 {
+		return nil, fmt.Errorf("直连设备动态注册失败: %s", resp.Message)
+	}
+
+	return &resp.Data, nil
+}
+
+// 子设备动态注册
+func (p *PlatformClient) SubDeviceDynamicRegister(deviceNumber string, subDeviceAddr string, parentDeviceNumber string) (*types.DeviceDynamicAuthData, error) {
+	if p.Config.SubTemplateSecret == "" {
+		return nil, fmt.Errorf("子设备模板密钥未配置")
+	}
+
+	req := &client.DeviceDynamicAuthRequest{
+		TemplateSecret:     p.Config.SubTemplateSecret,
+		DeviceNumber:       deviceNumber,
+		DeviceName:         p.Config.ServiceIdentifier + "-SUB-" + deviceNumber,
+		SubDeviceAddr:      subDeviceAddr,
+		ParentDeviceNumber: parentDeviceNumber,
+	}
+
+	resp, err := p.sdkClient.Device().DeviceDynamicAuth(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Code != 200 {
+		return nil, fmt.Errorf("子设备动态注册失败: %s", resp.Message)
+	}
+
+	return &resp.Data, nil
+}
+
+// 网关动态注册
+func (p *PlatformClient) GatewayDynamicRegister(deviceNumber string) (*types.DeviceDynamicAuthData, error) {
+	if p.Config.GatewayTemplateSecret == "" {
+		return nil, fmt.Errorf("网关模板密钥未配置")
+	}
+
+	req := &client.DeviceDynamicAuthRequest{
+		TemplateSecret: p.Config.GatewayTemplateSecret,
+		DeviceNumber:   deviceNumber,
+		DeviceName:     p.Config.ServiceIdentifier + "-网关-" + deviceNumber,
+	}
+
+	resp, err := p.sdkClient.Device().DeviceDynamicAuth(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code != 200 {
+		return nil, fmt.Errorf("网关动态注册失败: %s", resp.Message)
 	}
 
 	return &resp.Data, nil
@@ -154,6 +209,10 @@ func (p *PlatformClient) GetServiceAccessPoints() ([]types.ServiceAccessRsp, err
 // ClearDeviceCache 清理指定设备的缓存
 func (p *PlatformClient) ClearDeviceCache(deviceNumber string) {
 	p.cacheMutex.Lock()
+	// 先获取设备ID用于清理ID缓存
+	if device, exists := p.deviceCache[deviceNumber]; exists {
+		delete(p.deviceIDCache, device.ID)
+	}
 	delete(p.deviceCache, deviceNumber)
 	p.cacheMutex.Unlock()
 	p.logger.WithField("device_number", deviceNumber).Debug("设备缓存已清理")
@@ -161,19 +220,34 @@ func (p *PlatformClient) ClearDeviceCache(deviceNumber string) {
 
 // GetDeviceByID 通过设备ID查找设备
 func (p *PlatformClient) GetDeviceByID(deviceID string) (*types.Device, error) {
-	var foundDevice *types.Device
+	// 先查ID缓存
 	p.cacheMutex.RLock()
-	for _, device := range p.deviceCache {
-		if device.ID == deviceID {
-			foundDevice = device
-			break
-		}
+	if device, ok := p.deviceIDCache[deviceID]; ok && device.ID != "" {
+		p.cacheMutex.RUnlock()
+		logrus.Infof("设备ID找到，返回: %s", device.DeviceNumber)
+		return device, nil
 	}
 	p.cacheMutex.RUnlock()
-	if foundDevice != nil {
-		return foundDevice, nil
+
+	logrus.Infof("设备ID未找到，去平台查: %s", deviceID)
+	// 缓存未命中，从平台获取
+	req := &client.DeviceConfigRequest{
+		DeviceID: deviceID,
 	}
-	return nil, fmt.Errorf("device not found")
+	resp, err := p.sdkClient.Device().GetDeviceConfig(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code != 200 {
+		return nil, fmt.Errorf("获取设备信息失败: %s", resp.Message)
+	}
+	// 更新缓存
+	p.cacheMutex.Lock()
+	p.deviceCache[resp.Data.DeviceNumber] = &resp.Data
+	p.deviceIDCache[resp.Data.ID] = &resp.Data
+	p.cacheMutex.Unlock()
+	logrus.Infof("设备ID找到，更新缓存: %s", resp.Data.DeviceNumber)
+	return &resp.Data, nil
 }
 
 // SendTelemetry 发送遥测数据
@@ -226,15 +300,9 @@ func (p *PlatformClient) SendDeviceStatus(deviceID string, status int) error {
 		return fmt.Errorf("无效的设备状态值: %d，只支持 0(离线) 或 1(在线)", status)
 	}
 
-	payload, err := json.Marshal(map[string]interface{}{
-		"device_id": deviceID,
-		"values":    status,
-	})
-	if err != nil {
-		return fmt.Errorf("序列化状态消息失败: %v", err)
-	}
-
-	if err := p.sdkClient.MQTT().Publish("devices/status", 1, string(payload)); err != nil {
+	// payload
+	payload := []byte(fmt.Sprintf("%d", status))
+	if err := p.sdkClient.MQTT().Publish("devices/status/"+deviceID, 1, payload); err != nil {
 		return fmt.Errorf("发送状态消息失败: %v", err)
 	}
 
@@ -266,4 +334,73 @@ func (p *PlatformClient) SendHeartbeat(ctx context.Context, serviceIdentifier st
 	}
 
 	return nil
+}
+
+// SetCommandProcessor 设置指令处理器
+func (p *PlatformClient) SetCommandProcessor(processor CommandProcessorInterface) {
+	p.commandProcessor = processor
+	p.logger.Info("指令处理器已设置")
+
+	// 启动MQTT指令订阅
+	if err := p.startCommandSubscription(); err != nil {
+		p.logger.WithError(err).Error("启动指令订阅失败")
+	}
+}
+
+// startCommandSubscription 启动MQTT指令订阅
+func (p *PlatformClient) startCommandSubscription() error {
+	// 订阅指令主题
+	commandTopic := fmt.Sprintf("plugin/%s/devices/command/+/+", p.Config.ServiceIdentifier)
+
+	p.logger.Infof("开始订阅指令主题: %s", commandTopic)
+
+	if err := p.sdkClient.MQTT().Subscribe(commandTopic, 1, p.handleCommandMessage); err != nil {
+		return fmt.Errorf("订阅指令主题失败: %v", err)
+	}
+
+	p.logger.Info("指令主题订阅成功")
+	return nil
+}
+
+// handleCommandMessage 处理指令消息
+func (p *PlatformClient) handleCommandMessage(topic string, payload []byte) {
+	p.logger.Debugf("接收到指令消息: topic=%s, payload=%s", topic, string(payload))
+
+	// 解析topic获取deviceID和messageID
+	// topic格式: plugin/{service_identifier}/devices/command/{device_id}/{message_id}
+	parts := strings.Split(topic, "/")
+	if len(parts) != 6 {
+		p.logger.Errorf("指令主题格式错误: %s", topic)
+		return
+	}
+
+	deviceID := parts[4]
+	messageID := parts[5]
+
+	// 解析消息体
+	var message CommandMessage
+	if err := json.Unmarshal(payload, &message); err != nil {
+		p.logger.WithError(err).Errorf("解析指令消息失败: %s", string(payload))
+		return
+	}
+
+	// 检查指令处理器是否已设置
+	if p.commandProcessor == nil {
+		p.logger.Error("指令处理器未设置，无法处理指令")
+		return
+	}
+
+	// 处理指令
+	if err := p.commandProcessor.ProcessCommand(deviceID, messageID, message); err != nil {
+		p.logger.WithError(err).Errorf("处理指令失败: method=%s, deviceID=%s, messageID=%s",
+			message.Method, deviceID, messageID)
+	} else {
+		p.logger.Infof("指令处理成功: method=%s, deviceID=%s, messageID=%s",
+			message.Method, deviceID, messageID)
+	}
+}
+
+// GetCommandProcessor 获取指令处理器
+func (p *PlatformClient) GetCommandProcessor() CommandProcessorInterface {
+	return p.commandProcessor
 }

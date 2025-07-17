@@ -177,7 +177,7 @@ func (v *VirtualSensor) calculateChecksum(data []byte) byte {
 
 func main() {
 	var (
-		serverAddr  = flag.String("server", "localhost:15003", "服务器地址")
+		serverAddr  = flag.String("server", "localhost:15001", "服务器地址")
 		deviceID    = flag.Uint("device", 1, "设备ID")
 		period      = flag.Duration("period", 10*time.Second, "数据上报周期")
 		deviceCount = flag.Int("count", 1, "虚拟设备数量")

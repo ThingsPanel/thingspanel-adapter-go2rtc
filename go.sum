@@ -1,5 +1,7 @@
 github.com/ThingsPanel/tp-protocol-sdk-go v1.2.5 h1:oHlWULuB4l5OxuDftTXdPM/cqJERKRyQY5v6m2XXUuI=
 github.com/ThingsPanel/tp-protocol-sdk-go v1.2.5/go.mod h1:jKbstxcTGxGKq2sKFx03slEPVzGDn/MX3bsP7hTMpas=
+github.com/ThingsPanel/tp-protocol-sdk-go v1.2.6 h1:gf6zSOnta2RUPkJnysr/uu56Kx9+wkHy+lGCWjt2CLw=
+github.com/ThingsPanel/tp-protocol-sdk-go v1.2.6/go.mod h1:jKbstxcTGxGKq2sKFx03slEPVzGDn/MX3bsP7hTMpas=
 github.com/cpuguy83/go-md2man/v2 v2.0.5 h1:ZtcqGrnekaHpVLArFSe4HK5DoKx1T0rq2DwVB0alcyc=
 github.com/cpuguy83/go-md2man/v2 v2.0.5/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
