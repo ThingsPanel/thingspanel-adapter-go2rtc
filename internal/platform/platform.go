@@ -26,6 +26,11 @@ type CommandProcessorInterface interface {
 	ProcessCommand(deviceID, messageID string, message CommandMessage) error
 }
 
+// ControlProcessorInterface 控制处理器接口
+type ControlProcessorInterface interface {
+	ProcessControl(deviceID string, controlData map[string]interface{}) error
+}
+
 // CommandMessage 指令消息结构
 type CommandMessage struct {
 	Method string      `json:"method"`
@@ -41,6 +46,7 @@ type PlatformClient struct {
 	cacheMutex       sync.RWMutex
 	Config           Config
 	commandProcessor CommandProcessorInterface
+	controlProcessor ControlProcessorInterface
 }
 
 // Config 平台配置
@@ -347,6 +353,17 @@ func (p *PlatformClient) SetCommandProcessor(processor CommandProcessorInterface
 	}
 }
 
+// SetControlProcessor 设置控制处理器
+func (p *PlatformClient) SetControlProcessor(processor ControlProcessorInterface) {
+	p.controlProcessor = processor
+	p.logger.Info("控制处理器已设置")
+
+	// 启动MQTT控制订阅
+	if err := p.startControlSubscription(); err != nil {
+		p.logger.WithError(err).Error("启动控制订阅失败")
+	}
+}
+
 // startCommandSubscription 启动MQTT指令订阅
 func (p *PlatformClient) startCommandSubscription() error {
 	// 订阅指令主题
@@ -403,4 +420,59 @@ func (p *PlatformClient) handleCommandMessage(topic string, payload []byte) {
 // GetCommandProcessor 获取指令处理器
 func (p *PlatformClient) GetCommandProcessor() CommandProcessorInterface {
 	return p.commandProcessor
+}
+
+// GetControlProcessor 获取控制处理器
+func (p *PlatformClient) GetControlProcessor() ControlProcessorInterface {
+	return p.controlProcessor
+}
+
+// startControlSubscription 启动MQTT控制订阅
+func (p *PlatformClient) startControlSubscription() error {
+	// 订阅控制主题
+	controlTopic := "devices/telemetry/control/+"
+
+	p.logger.Infof("开始订阅控制主题: %s", controlTopic)
+
+	if err := p.sdkClient.MQTT().Subscribe(controlTopic, 1, p.handleControlMessage); err != nil {
+		return fmt.Errorf("订阅控制主题失败: %v", err)
+	}
+
+	p.logger.Info("控制主题订阅成功")
+	return nil
+}
+
+// handleControlMessage 处理控制消息
+func (p *PlatformClient) handleControlMessage(topic string, payload []byte) {
+	p.logger.Debugf("接收到控制消息: topic=%s, payload=%s", topic, string(payload))
+
+	// 解析topic获取deviceID
+	// topic格式: devices/telemetry/control/{device_id}
+	parts := strings.Split(topic, "/")
+	if len(parts) != 4 {
+		p.logger.Errorf("控制主题格式错误: %s", topic)
+		return
+	}
+
+	deviceID := parts[3]
+
+	// 解析消息体
+	var controlData map[string]interface{}
+	if err := json.Unmarshal(payload, &controlData); err != nil {
+		p.logger.WithError(err).Errorf("解析控制消息失败: %s", string(payload))
+		return
+	}
+
+	// 检查控制处理器是否已设置
+	if p.controlProcessor == nil {
+		p.logger.Error("控制处理器未设置，无法处理控制消息")
+		return
+	}
+
+	// 处理控制消息
+	if err := p.controlProcessor.ProcessControl(deviceID, controlData); err != nil {
+		p.logger.WithError(err).Errorf("处理控制消息失败: deviceID=%s", deviceID)
+	} else {
+		p.logger.Infof("控制消息处理成功: deviceID=%s", deviceID)
+	}
 }
