@@ -12,12 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// StreamInfo go2rtc流信息
-type StreamInfo struct {
-	Name    string   `json:"name"`
-	Sources []string `json:"sources,omitempty"`
-}
-
 type Go2RTCProtocolHandler struct {
 	port   int
 	client *http.Client
@@ -148,6 +142,21 @@ func (h *Go2RTCProtocolHandler) RemoveStream(name string) error {
 	return nil
 }
 
+// StreamInfo go2rtc流信息
+type StreamInfo struct {
+	Name    string   `json:"name"`
+	Sources []string `json:"sources,omitempty"`
+	URL     string   `json:"url,omitempty"` // 提取的第一个源地址
+}
+
+type streamDetail struct {
+	Producers []struct {
+		URL string `json:"url"`
+	} `json:"producers"`
+}
+
+// ... (existing code)
+
 // ListStreams 从go2rtc获取所有streams列表
 // GET /api/streams
 func (h *Go2RTCProtocolHandler) ListStreams() ([]StreamInfo, error) {
@@ -168,14 +177,22 @@ func (h *Go2RTCProtocolHandler) ListStreams() ([]StreamInfo, error) {
 	}
 
 	// go2rtc returns map[string]interface{} where key is stream name
-	var streamsMap map[string]interface{}
+	// Value is actually complex, we need to parse it to get producers
+	var streamsMap map[string]streamDetail
 	if err := json.Unmarshal(body, &streamsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse streams: %v", err)
 	}
 
 	var streams []StreamInfo
-	for name := range streamsMap {
-		streams = append(streams, StreamInfo{Name: name})
+	for name, detail := range streamsMap {
+		info := StreamInfo{Name: name}
+		if len(detail.Producers) > 0 {
+			info.URL = detail.Producers[0].URL
+			info.Sources = append(info.Sources, info.URL)
+		}
+		// Debug log
+		h.logger.Infof("Parsed stream: %s, URL: %s, Producers: %d", name, info.URL, len(detail.Producers))
+		streams = append(streams, info)
 	}
 
 	h.logger.Debugf("Listed %d streams from go2rtc", len(streams))

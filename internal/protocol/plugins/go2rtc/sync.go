@@ -3,6 +3,8 @@ package go2rtc
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -105,7 +107,7 @@ func (s *DeviceSyncService) syncDevices() {
 
 		if !synced {
 			// 注册新设备
-			if err := s.registerDevice(stream.Name); err != nil {
+			if err := s.registerDevice(stream); err != nil {
 				s.logger.WithError(err).Errorf("注册设备失败: %s", stream.Name)
 			} else {
 				s.syncedMutex.Lock()
@@ -130,21 +132,49 @@ func (s *DeviceSyncService) syncDevices() {
 }
 
 // registerDevice 注册设备到ThingsPanel
-func (s *DeviceSyncService) registerDevice(streamName string) error {
+func (s *DeviceSyncService) registerDevice(stream StreamInfo) error {
+	var deviceID string
+
 	// 使用动态注册API
-	result, err := s.platformClient.DynamicRegister(streamName)
+	result, err := s.platformClient.DynamicRegister(stream.Name)
 	if err != nil {
-		return err
+		// 如果是设备已存在错误，则获取设备信息继续往下走
+		// 注意：这里的错误匹配需要根据SDK返回的实际错误信息来定
+		// SDK error: "直连设备动态注册失败: 设备已存在"
+		if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "exists") {
+			s.logger.Debugf("设备 %s 已存在，尝试获取ID并更新属性", stream.Name)
+			device, errGet := s.platformClient.GetDevice(stream.Name)
+			if errGet != nil {
+				return fmt.Errorf("设备已存在但获取信息失败: %v", errGet)
+			}
+			deviceID = device.ID
+		} else {
+			return err
+		}
+	} else {
+		deviceID = result.DeviceID
+		s.logger.WithFields(logrus.Fields{
+			"device_id":     deviceID,
+			"device_number": stream.Name,
+			"stream_url":    stream.URL,
+		}).Info("设备动态注册成功")
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"device_id":     result.DeviceID,
-		"device_number": streamName,
-	}).Info("设备动态注册成功")
-
 	// 发送设备在线状态
-	if err := s.platformClient.SendDeviceStatus(result.DeviceID, platform.DeviceStatusOnline); err != nil {
+	if err := s.platformClient.SendDeviceStatus(deviceID, platform.DeviceStatusOnline); err != nil {
 		s.logger.WithError(err).Warn("发送设备在线状态失败")
+	}
+
+	// 上报流地址属性
+	if stream.URL != "" {
+		attrs := map[string]interface{}{
+			"stream_url": stream.URL,
+		}
+		if err := s.platformClient.SendAttributes(deviceID, attrs); err != nil {
+			s.logger.WithError(err).Warn("发送流地址属性失败")
+		} else {
+			s.logger.Infof("上报属性成功: stream_url=%s", stream.URL)
+		}
 	}
 
 	return nil

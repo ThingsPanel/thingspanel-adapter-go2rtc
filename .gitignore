@@ -4,3 +4,5 @@ logs/
 go2rtc_linux_amd64
 tp-adapter-go2rtc
 tp-adapter-linux
+configs/config.yaml
+references/

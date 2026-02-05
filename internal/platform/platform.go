@@ -324,6 +324,50 @@ func (p *PlatformClient) SendDeviceStatus(deviceID string, status int) error {
 	return nil
 }
 
+// SendAttributes 发送设备属性
+func (p *PlatformClient) SendAttributes(deviceID string, values map[string]interface{}) error {
+	// 1. 先将 values 转换为 JSON
+	valuesJSON, err := json.Marshal(values)
+	if err != nil {
+		return fmt.Errorf("序列化values失败: %v", err)
+	}
+
+	// 2. 将 JSON 进行 base64 编码
+	valuesBase64 := base64.StdEncoding.EncodeToString(valuesJSON)
+
+	// 3. 构造最终消息
+	msg := map[string]interface{}{
+		"device_id": deviceID,
+		"values":    valuesBase64, // base64 编码的字符串
+	}
+
+	// 4. 将整个消息转换为 JSON
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("序列化消息失败: %v", err)
+	}
+
+	// 5. 发送消息
+	// 注意：ThingsPanel 的属性上报 topic 需要加上 MessageID
+	// 参考 service-plugin-wvp/mqtt/mqtt_client.go: PublishAttributes
+	timestamp := time.Now().Unix()
+	timestampStr := fmt.Sprintf("%d", timestamp)
+	messageID := timestampStr[len(timestampStr)-7:]
+
+	topic := "devices/attributes/" + messageID
+
+	if err := p.sdkClient.MQTT().Publish(topic, 1, string(payload)); err != nil {
+		return fmt.Errorf("发送属性消息失败: %v", err)
+	}
+
+	p.logger.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"topic":     topic,
+	}).Debug("设备属性发送成功", string(valuesJSON))
+
+	return nil
+}
+
 // SendHeartbeat 发送插件心跳
 func (p *PlatformClient) SendHeartbeat(ctx context.Context, serviceIdentifier string) error {
 	req := &client.HeartbeatRequest{

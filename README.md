@@ -1,6 +1,20 @@
 # ThingsPanel go2rtc Adapter
 
-这是一个 ThingsPanel 的**三方接入服务插件**，用于集成 [go2rtc](https://github.com/AlexxIT/go2rtc) 流媒体服务器。
+[English](README_EN.md) | [中文](README.md)
+
+本项目是 **ThingsPanel** 物联网平台的官方官方适配器，用于无缝集成 [**go2rtc**](https://github.com/AlexxIT/go2rtc) 这一强大的流媒体服务器。
+
+### 🚀 为什么要结合 Go2RTC？
+Go2RTC 是目前最先进的开源流媒体服务器之一，支持 RTSP, RTMP, WebRTC, HTTP-FLV, HLS 等几乎所有主流协议。
+通过本适配器，您可以获得：
+- 📺 **极低延迟**: 在 ThingsPanel 仪表盘中实现毫秒级 (WebRTC/MSE) 视频监控。
+- 🔄 **自动同步**: 自动发现 go2rtc 中的所有视频流，无需在平台手动重复创建设备。
+- ⚡ **统一管理**: 在 ThingsPanel 中统一管理视频设备、查看状态、接收告警，同时享受 go2rtc 强大的转码和分发能力。
+
+---
+
+这是一个 ThingsPanel 的**三方接入服务插件**。
+
 
 ## 功能特性
 
@@ -8,6 +22,52 @@
 - **三方接入**: 使用服务接入模式，无需手动创建设备
 - **流媒体集成**: 支持 RTSP, RTMP, WebRTC, HLS 等多种协议
 - **设备模拟**: 支持使用 ffmpeg 模拟摄像头流，方便无实物开发测试
+
+---
+
+## 🔧 完整接入/模拟流程
+
+## 🔧 Go2RTC 部署与安装
+
+在运行适配器之前，您需要先安装并启动 `go2rtc` 流媒体服务。
+
+### 1. 下载与安装
+
+请前往 [go2rtc Releases](https://github.com/AlexxIT/go2rtc/releases) 下载适合您架构的二进制文件 (如 Linux amd64)。
+
+```bash
+# 下载 (以 v1.9.8 linux_amd64 为例)
+wget https://github.com/AlexxIT/go2rtc/releases/download/v1.9.8/go2rtc_linux_amd64 -O go2rtc
+chmod +x go2rtc
+```
+
+### 2. 配置文件 (go2rtc.yaml)
+
+创建 `/etc/go2rtc/go2rtc.yaml`，填入以下基础配置：
+
+```yaml
+api:
+  listen: "0.0.0.0:1984" # 开放 API 端口
+
+rtsp:
+  listen: ":8554"        # RTSP 端口
+
+streams:
+  # 可选：预置一些测试流
+  camera_demo: exec:ffmpeg -re -stream_loop -1 -i https://media.w3.org/2010/05/sintel/trailer.mp4 -c copy -rtsp_transport tcp -f rtsp {output}
+```
+
+### 3. 启动服务
+
+```bash
+# 前台启动测试
+./go2rtc -c /etc/go2rtc/go2rtc.yaml
+
+# 或后台运行
+nohup ./go2rtc -c /etc/go2rtc/go2rtc.yaml > go2rtc.log 2>&1 &
+```
+
+确保访问 `http://<服务器IP>:1984` 能看到 go2rtc 的 Web 界面。
 
 ---
 
@@ -40,7 +100,51 @@ curl -X PUT "http://localhost:1984/api/streams?src=rtsp://admin:password@192.168
 
 ---
 
-## 一、超级管理员：配置插件
+## 🧪 自动化测试脚本
+
+项目内置了测试脚本，可以快速添加模拟设备：
+
+```bash
+# 在服务器上执行
+chmod +x tests/simulate_device.sh
+./tests/simulate_device.sh
+```
+
+执行后，go2rtc 会新增一个名为 `simulated_cam_v2` 的流。等待 30 秒后，ThingsPanel 应自动发现该设备，并在 **属性** 页签中显示 `stream_url`。
+
+---
+
+## 🔧 适配器服务端配置 (重要)
+
+在启动适配器前，需要修改 `configs/config.yaml` 文件。
+
+### 1. 获取 Template Secret (关键)
+
+设备自动注册需要使用 **设备模板密钥**。请按以下步骤获取：
+
+1. 进入 **ThingsPanel 常规管理** -> **设备模板**。
+2. 找到（或创建）`go2rtc` 模板，点击**详情**。
+3. 进入 **设备设置** -> **自动创建设备**。
+4. 找到 **一型一密 (One-Type-One-Secret)** 配置项。
+5. 点击复选框 **"允许设备自动创建"**。
+6. 复制显示的 **"设备密码"** (即 Template Secret)。
+
+### 2. 修改配置文件
+
+打开 `configs/config.yaml` (或服务器上的 `~/tp-adapter/configs/config.yaml`)：
+
+```yaml
+# ...
+platform:
+  # ...
+  # 将刚才复制的密钥填入此处
+  template_secret: "ff3267c2-e0f5-6615-ba15-99a50a89600f" 
+```
+
+---
+
+## 🔧 完整接入/模拟流程
+
 
 ### 1.1 进入插件管理
 **路径**: 应用管理 → 插件管理
