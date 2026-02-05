@@ -14,6 +14,9 @@ import (
 
 	"github.com/ThingsPanel/tp-protocol-sdk-go/handler"
 	"github.com/sirupsen/logrus"
+
+	"tp-plugin/internal/protocol"
+	"tp-plugin/internal/protocol/plugins/go2rtc"
 )
 
 // logrusWriter 实现 io.Writer 接口用于适配logrus
@@ -41,13 +44,14 @@ func (w *logrusWriter) Write(p []byte) (n int, err error) {
 
 // HTTPHandler HTTP服务处理器
 type HTTPHandler struct {
-	platform *platform.PlatformClient
-	logger   *logrus.Logger
-	stdlog   *log.Logger
+	platform        *platform.PlatformClient
+	logger          *logrus.Logger
+	stdlog          *log.Logger
+	protocolHandler protocol.ProtocolHandler
 }
 
 // NewHTTPHandler 创建HTTP处理器
-func NewHTTPHandler(platform *platform.PlatformClient, logger *logrus.Logger) *HTTPHandler {
+func NewHTTPHandler(platform *platform.PlatformClient, logger *logrus.Logger, ph protocol.ProtocolHandler) *HTTPHandler {
 	// 创建适配器
 	writer := &logrusWriter{
 		logger: logger,
@@ -58,9 +62,10 @@ func NewHTTPHandler(platform *platform.PlatformClient, logger *logrus.Logger) *H
 	stdlog := log.New(writer, "", 0)
 
 	return &HTTPHandler{
-		platform: platform,
-		logger:   logger,
-		stdlog:   stdlog,
+		platform:        platform,
+		logger:          logger,
+		stdlog:          stdlog,
+		protocolHandler: ph,
 	}
 }
 
@@ -101,7 +106,7 @@ func (h *HTTPHandler) handleGetFormConfig(req *handler.GetFormConfigRequest) (in
 	case "VCR": // 设备凭证表单
 		return nil, nil
 	case "SVCR": // 服务接入点凭证表单
-		return readFormConfigByPath("../internal/form_json/form_service_voucher.json"), nil
+		return readFormConfigByPath("internal/form_json/form_service_voucher.json"), nil
 	default:
 		return nil, fmt.Errorf("不支持的表单类型: %s", req.FormType)
 	}
@@ -170,7 +175,60 @@ func (h *HTTPHandler) handleNotification(req *handler.NotificationRequest) error
 		// TODO: 实现服务配置修改逻辑
 	case "2": // 设备配置修改
 		h.logger.Info("处理设备配置修改通知")
-		// TODO: 实现设备配置修改逻辑
+		// device_id is in the message
+		deviceID, ok := msgData["device_id"].(string)
+		if !ok {
+			h.logger.Error("通知消息中缺少device_id")
+			return nil
+		}
+
+		// 获取设备信息
+		device, err := h.platform.GetDeviceByID(deviceID)
+		if err != nil {
+			h.logger.WithError(err).Warnf("获取设备信息失败: %s", deviceID)
+			return nil
+		}
+
+		// 检查是否有 stream_url
+		// Device.Voucher is a JSON string
+		if device.Voucher != "" {
+			var voucher map[string]interface{}
+			if err := json.Unmarshal([]byte(device.Voucher), &voucher); err == nil {
+				streamURL, _ := voucher["stream_url"].(string)
+				if streamURL != "" {
+					streamName, _ := voucher["stream_name"].(string)
+					if streamName == "" {
+						streamName = device.DeviceNumber
+					}
+
+					// Call go2rtc handler
+					var gh *go2rtc.Go2RTCProtocolHandler
+
+					// Try to cast to Go2RTCProtocolHandler directly
+					if g, ok := h.protocolHandler.(*go2rtc.Go2RTCProtocolHandler); ok {
+						gh = g
+					} else if sph, ok := h.protocolHandler.(*protocol.SingleProtocolHandler); ok {
+						// Try to unwrap from SingleProtocolHandler
+						if g, ok := sph.GetHandler().(*go2rtc.Go2RTCProtocolHandler); ok {
+							gh = g
+						}
+					}
+
+					if gh != nil {
+						// Add stream
+						if err := gh.AddStream(streamName, streamURL); err != nil {
+							h.logger.WithError(err).Errorf("Adding stream failed: %s", streamName)
+						} else {
+							h.logger.Infof("Updated stream: %s -> %s", streamName, streamURL)
+						}
+					}
+				} else {
+					h.logger.Warn("Protocol handler is not go2rtc handler")
+				}
+			} else {
+				h.logger.WithError(err).Warnf("解析凭证失败: %s", device.Voucher)
+			}
+		}
 	default:
 		h.logger.Warnf("未知的通知类型: %s", req.MessageType)
 	}
@@ -194,9 +252,47 @@ func (h *HTTPHandler) handleGetDeviceList(req *handler.GetDeviceListRequest) (*h
 		return nil, err
 	}
 
+	// 尝试从go2rtc获取streams列表
+	devices := []handler.DeviceItem{} // 初始化为空切片，确保返回[]而非null
+
+	// 获取go2rtc handler
+	var gh *go2rtc.Go2RTCProtocolHandler
+	if g, ok := h.protocolHandler.(*go2rtc.Go2RTCProtocolHandler); ok {
+		gh = g
+	} else if sph, ok := h.protocolHandler.(*protocol.SingleProtocolHandler); ok {
+		if g, ok := sph.GetHandler().(*go2rtc.Go2RTCProtocolHandler); ok {
+			gh = g
+		}
+	}
+
+	if gh != nil {
+		// 如果SVCR中配置了API URL，更新handler
+		if svcrForm.APIURL != "" {
+			gh.SetAPIURL(svcrForm.APIURL)
+		}
+
+		// 获取streams列表
+		streams, err := gh.ListStreams()
+		if err != nil {
+			h.logger.WithError(err).Warn("获取go2rtc streams失败")
+		} else {
+			for _, stream := range streams {
+				devices = append(devices, handler.DeviceItem{
+					DeviceName:   stream.Name,
+					DeviceNumber: stream.Name,
+					Description:  "go2rtc stream",
+				})
+			}
+		}
+	}
+
 	rsp := handler.DeviceListResponse{
 		Code:    200,
 		Message: "获取成功",
+		Data: handler.DeviceListData{
+			Total: len(devices),
+			List:  devices,
+		},
 	}
 
 	// 记录设备日志统计信息到主日志

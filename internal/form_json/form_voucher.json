@@ -20,5 +20,21 @@
             "required": true,
             "type": "string"
         }
+    },
+    {
+      "dataKey": "stream_url",
+      "label": "Stream URL",
+      "placeholder": "rtsp://... or rtmp://...",
+      "type": "input",
+      "validate": {
+        "required": true,
+        "message": "Stream URL is required"
+      }
+    },
+    {
+      "dataKey": "stream_name",
+      "label": "Stream Name (Optional)",
+      "placeholder": "Leave empty to use Device Number",
+      "type": "input"
     }
 ]

@@ -7,7 +7,7 @@ import (
 	"tp-plugin/internal/config"
 	"tp-plugin/internal/platform"
 	"tp-plugin/internal/protocol"
-	"tp-plugin/internal/protocol/plugins/examples"
+	"tp-plugin/internal/protocol/plugins/go2rtc"
 
 	"github.com/sirupsen/logrus"
 )
@@ -17,6 +17,7 @@ type AppContext struct {
 	Config          *config.Config
 	PlatformClient  *platform.PlatformClient
 	ProtocolHandler *protocol.SingleProtocolHandler
+	SyncService     *go2rtc.DeviceSyncService // 设备同步服务
 	ctx             context.Context
 	cancel          context.CancelFunc
 	heartbeatTicker *time.Ticker // 心跳定时器
@@ -26,6 +27,11 @@ type AppContext struct {
 func (app *AppContext) Shutdown() {
 	if app.cancel != nil {
 		app.cancel()
+	}
+
+	// 停止设备同步服务
+	if app.SyncService != nil {
+		app.SyncService.Stop()
 	}
 
 	// 停止协议处理器
@@ -109,7 +115,7 @@ func StartApp(configPath string) (*AppContext, error) {
 	}
 
 	// 7. 启动HTTP服务
-	if err := StartHTTPServer(platformClient, cfg.Server.HTTPPort); err != nil {
+	if err := StartHTTPServer(platformClient, cfg.Server.HTTPPort, app.ProtocolHandler); err != nil {
 		app.Shutdown()
 		return nil, err
 	}
@@ -120,9 +126,9 @@ func StartApp(configPath string) (*AppContext, error) {
 
 // initializeProtocol 初始化单协议处理器
 func initializeProtocol(app *AppContext, cfg *config.Config) error {
-	// 创建协议处理器（示例：使用传感器协议）
-	// TODO: 根据你的协议替换这里的实现
-	protocolHandler := examples.NewSensorProtocolHandler(cfg.Server.Port)
+	// 创建协议处理器
+	// 使用 go2rtc 协议处理器
+	protocolHandler := go2rtc.NewHandler(cfg.Server.Port)
 
 	// 创建单协议处理器
 	singleHandler := protocol.NewSingleProtocolHandler(
@@ -138,5 +144,16 @@ func initializeProtocol(app *AppContext, cfg *config.Config) error {
 
 	app.ProtocolHandler = singleHandler
 	logrus.Infof("单协议处理器初始化完成 - %s (v%s)", protocolHandler.Name(), protocolHandler.Version())
+
+	// 启动设备同步服务 (默认30秒同步间隔)
+	syncService := go2rtc.NewDeviceSyncService(
+		protocolHandler,
+		app.PlatformClient,
+		logrus.StandardLogger(),
+		30, // 同步间隔(秒)
+	)
+	syncService.Start()
+	app.SyncService = syncService
+
 	return nil
 }

@@ -110,3 +110,38 @@ func (s *SingleProtocolHandler) GetConnectedDevices() []string {
 func (s *SingleProtocolHandler) IsRunning() bool {
 	return s.tcpHandler != nil
 }
+
+// GetHandler 获取底层协议处理器
+func (s *SingleProtocolHandler) GetHandler() ProtocolHandler {
+	return s.handler
+}
+
+// Name 协议名称
+func (s *SingleProtocolHandler) Name() string {
+	return s.handler.Name()
+}
+
+// Version 协议版本
+func (s *SingleProtocolHandler) Version() string {
+	return s.handler.Version()
+}
+
+// Port 协议端口
+func (s *SingleProtocolHandler) Port() int {
+	return s.handler.Port()
+}
+
+// ExtractDeviceNumber 提取设备编号
+func (s *SingleProtocolHandler) ExtractDeviceNumber(data []byte) (string, error) {
+	return s.handler.ExtractDeviceNumber(data)
+}
+
+// ParseData 解析数据
+func (s *SingleProtocolHandler) ParseData(data []byte) (*Message, error) {
+	return s.handler.ParseData(data)
+}
+
+// EncodeCommand 编码指令
+func (s *SingleProtocolHandler) EncodeCommand(cmd *Command) ([]byte, error) {
+	return s.handler.EncodeCommand(cmd)
+}

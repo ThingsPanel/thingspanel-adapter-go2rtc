@@ -1,16 +1,16 @@
 # configs/config.yaml
 server:
-  port: 15001
-  http_port: 15002
-  heartbeatTimeout: 60 # 心跳超时时间(秒)
+  port: 12001                # 协议端口
+  http_port: 12000           # HTTP服务端口
+  heartbeatTimeout: 60       # 心跳超时时间(秒)
 
 platform:
-  url: "http://47.104.235.67:19999"
-  mqtt_broker: "mqtt://47.104.235.67:11883"
+  url: "http://127.0.0.1:9999"
+  mqtt_broker: "tcp://127.0.0.1:1883"
   mqtt_username: "root"
-  mqtt_password: "root"
-  service_identifier: "OG-SZ501"  # 服务标识符
-  template_secret: "e43823f2-7a91-133b-13d1-612df60fbfdc"  # 模板密钥，用于动态注册
+  mqtt_password: "change_me"
+  service_identifier: "GO2RTC"  # 服务标识符 (简洁直观)
+  template_secret: "change_me"  # 模板密钥，用于动态注册
 
 log:
   level: "debug"

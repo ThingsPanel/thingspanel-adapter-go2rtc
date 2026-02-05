@@ -1,278 +1,126 @@
-# 协议插件模板
+# ThingsPanel go2rtc Adapter
 
-这是一个用于开发ThingsPanel协议插件的框架模板，提供了完整的插件开发基础架构，可以帮助开发者快速构建自定义协议插件。
+这是一个 ThingsPanel 的**三方接入服务插件**，用于集成 [go2rtc](https://github.com/AlexxIT/go2rtc) 流媒体服务器。
 
-## 特性
+## 功能特性
 
-- 内置日志系统，支持文件轮转
-- MQTT客户端集成
-- 设备管理和缓存机制
-- 表单配置管理
-- HTTP服务支持
-- 优雅的错误处理
-- 配置文件管理
-- **设备独立日志** - 为每个设备创建独立的日志文件，方便问题定位
+- **自动同步**: 自动从go2rtc获取streams列表，同步到ThingsPanel
+- **三方接入**: 使用服务接入模式，无需手动创建设备
+- **流媒体集成**: 支持 RTSP, RTMP, WebRTC, HLS 等多种协议
+- **设备模拟**: 支持使用 ffmpeg 模拟摄像头流，方便无实物开发测试
 
-## 重要概念
+---
 
-在开发协议插件前，请务必了解设备标识符的概念区分：
-- **设备编号 (device_number)** - 设备本身的唯一标识符，从设备数据中提取  
-- **设备ID (device_id)** - 平台分配给设备的内部ID，用于平台内部标识
+## 🔧 完整接入/模拟流程
 
-详细说明请参考：[设备标识符概念说明](docs/设备标识符概念说明.md)
+### 1. 启动 go2rtc 服务
 
-## 快速开始
+确保 `go2rtc` 已在宿主机运行，并且 API端口为 `1984`。
 
-### 安装
+### 2. 添加流媒体设备 (模拟或真实)
 
-1. 克隆仓库
-   ```bash
-   git clone https://github.com/your-org/protocol-plugin-template.git
-   cd protocol-plugin-template
-   ```
+如果你没有真实摄像头，可以使用模拟流。
 
-2. 安装依赖
-   ```bash
-   go mod tidy
-   ```
+#### 方案 A: 添加模拟流 (Virtual Camera)
+我们使用 `ffmpeg` 生成一个测试流。你可以通过 go2rtc 的 API 添加：
 
-### 运行
-
-1. 确保配置文件 `configs/config.yaml` 已正确设置
-
-2. 启动服务
-   ```bash
-   cd cmd
-   go run main.go
-   ```
-
-   也可以指定配置文件路径
-   ```bash
-   go run main.go --config ../configs/custom-config.yaml
-   ```
-
-### 开发自定义协议插件
-
-1. 修改 `configs/config.yaml` 中的配置以匹配您的环境
-2. 根据需要实现自定义协议处理逻辑
-3. 如果仅需要控制台日志而不想生成日志文件，可将 `enableFile` 设置为 `false`
-
-## 目录结构
-
-```text
-.
-├── cmd/                    # 主程序入口
-│   └── main.go            # 主程序
-├── configs/               # 配置文件目录
-│   └── config.yaml        # 主配置文件
-├── internal/              # 内部包
-│   ├── bootstrap/        # 应用引导和初始化
-│   │   ├── app.go        # 应用程序上下文
-│   │   ├── config.go     # 配置加载
-│   │   ├── http.go       # HTTP服务初始化
-│   │   ├── logger.go     # 日志初始化
-│   │   └── platform.go   # 平台客户端初始化
-│   ├── config/           # 配置结构定义
-│   ├── form_json/        # 表单JSON定义
-│   ├── handler/          # HTTP处理器
-│   ├── pkg/              # 通用包
-│   │   └── logger/       # 日志包
-│   └── platform/         # 平台交互
-├── examples/              # 示例代码
-├── logs/                  # 日志文件目录(运行时生成)
-└── go.mod                # Go模块文件
+```bash
+# 添加一个名为 virtual_cam 的虚拟流，显示测试图案和时间
+curl -X PUT "http://localhost:1984/api/streams?src=exec:ffmpeg+-re+-f+lavfi+-i+testsrc=size=1920x1080:rate=30+-c:v+libx264+-preset+ultrafast+-tune+zerolatency+-f+rtsp+{output}&name=virtual_cam"
 ```
 
-## 核心组件说明
+> **提示**: 这个命令会让 go2rtc 启动 ffmpeg 进程，生成一个实时的 RTSP 流。
 
-### 1. 应用引导 (internal/bootstrap)
+#### 方案 B: 添加真实摄像头 (RTSP/ONVIF)
+如果有真实摄像头，直接添加其 RTSP 地址：
 
-- 负责应用程序初始化和启动流程
-- 管理应用生命周期和资源
-- 提供优雅的服务启动和关闭机制
-- 协调各个组件的初始化顺序
-
-### 2. 配置管理 (internal/config)
-
-- 定义了插件所需的各种配置结构
-- 支持服务器配置、平台配置和日志配置
-- 使用YAML格式配置文件
-
-### 3. HTTP处理器 (internal/handler)
-
-- 处理各种HTTP请求
-- 实现了表单配置、设备断开连接、通知等处理函数
-- 支持自定义处理逻辑
-
-### 4. 日志系统 (internal/pkg/logger)
-
-- 基于logrus的日志系统
-- 支持日志级别控制
-- 支持日志文件轮转
-- 支持控制台彩色输出
-- 支持文件日志开关，可选择仅输出到控制台
-- **设备独立日志** - 为每个设备创建独立的日志文件，方便问题定位
-
-#### 设备独立日志功能
-
-为了解决大量设备接入时问题定位困难的问题，系统提供了设备独立日志功能：
-
-- **独立文件**: 每个设备生成独立的日志文件 `logs/devices/{设备ID}.log`
-- **完整记录**: 记录设备的所有数据交互、状态变化、指令发送等
-- **自动轮转**: 支持日志文件大小和时间基础的自动轮转
-- **工具支持**: 提供 `examples/device_log_viewer.sh` 脚本便于查看和分析
-
-详细说明请参考: [设备独立日志功能说明](docs/设备独立日志功能说明.md)
-
-### 5. 平台客户端 (internal/platform)
-
-- 管理与ThingsPanel平台的通信
-- 提供设备管理和缓存机制
-- 处理遥测数据发送
-- 管理设备状态和心跳
-
-## 规范
-
-- 官方插件开发说明文档
-
-<http://thingspanel.io/zh-Hans/docs/system-development/eveloping-plug-in/customProtocol>
-
-## 配置文件说明
-
-配置文件位于 `configs/config.yaml`，主要包含以下配置：
-
-### 服务器配置 (server)
-
-```yaml
-server:
-  port: 15001             # 协议插件服务端口
-  http_port: 15002        # HTTP服务端口
-  heartbeatTimeout: 60    # 心跳超时时间(秒)
+```bash
+curl -X PUT "http://localhost:1984/api/streams?src=rtsp://admin:password@192.168.1.100:554/stream&name=living_room"
 ```
 
-### 平台配置 (platform)
+---
 
-```yaml
-platform:
-  url: "http://example.com"       # 平台API地址
-  mqtt_broker: "mqtt://broker"    # MQTT服务器地址
-  mqtt_username: "username"       # MQTT用户名
-  mqtt_password: "password"       # MQTT密码
-  service_identifier: "Template"  # 服务标识符
-```
+## 一、超级管理员：配置插件
 
-### 日志配置 (log)
+### 1.1 进入插件管理
+**路径**: 应用管理 → 插件管理
 
-```yaml
-log:
-  level: "debug"          # 日志级别: debug, info, warn, error
-  filePath: "logs/app.log" # 日志文件路径
-  enableFile: true        # 是否将日志输出到文件
-  maxSize: 100            # 每个日志文件的最大大小(MB)
-  maxBackups: 3           # 保留的旧日志文件的最大数量
-  maxAge: 28              # 保留日志文件的最大天数
-  compress: true          # 是否压缩旧日志文件
-```
+### 1.2 配置插件 (关键步骤)
+找到 `GO2RTC` 插件，点击 **配置**。
 
-## 表单规范
+⚠️ **注意：HTTP服务地址千万不要加 http:// 前缀！**
 
-表单 JSON 结构规范
+| 配置项 | 正确填写示例 | 错误示例 (不要这样填) |
+|--------|-------------|----------------------|
+| **HTTP服务地址** | `172.17.0.1:12000` | `http://172.17.0.1:12000` |
+| **服务订阅主题前缀** | `service/go2rtc` | (留空) |
+| **设备类型** | `直连设备` | - |
 
-该文档描述了用于生成前端表单的 JSON 结构的规范。它确定了必须和可选字段，以及它们的预期值。
+> **说明**: 平台会自动添加协议头，如果这里填了 `http://`，会导致请求变成 `http://http://...` 从而失败。
 
-1. 总体结构
-表单由一个数组构成，每个数组元素都代表一个表单元素。表单元素可以是各种类型，如输入框或表格。
+---
 
-    ```text
-    [
-        { /* 表单元素1 */ },
-        { /* 表单元素2 */ },
-        // ...
-    ]
-    ```
+## 二、租户账户：接入 go2rtc
 
-2. 字段定义
+### 2.1 进入三方接入
+**路径**: 设备管理 → **三方接入**
 
-| 字段名称    | 必选/可选               | 数据类型 | 描述                                                                           | 示例或备注                            |
-| ----------- | ----------------------- | -------- | ------------------------------------------------------------------------------ | ------------------------------------- |
-| dataKey     | 必填                    | 字符串   | 用于唯一标识表单元素的键。                                                     | "temp", "table1"                      |
-| label       | 必填                    | 字符串   | 显示为表单元素标签的文本。                                                     | "读取策略(秒)", "属性列表"            |
-| placeholder | 可选                    | 字符串   | 显示在表单元素中作为提示的文本。                                               | "请输入时间间隔，单位s"               |
-| type        | 必填                    | 字符串   | 表单元素的类型。目前支持的类型有："input" 和 "table"。                         | "input", "table"                      |
-| validate    | 可选                    | 对象     | 包含表单验证规则的对象。                                                       | 见 validate 字段的详细描述            |
-| └─message   | 必填                    | 字符串   | 当验证失败时显示的错误消息。                                                   | "读取策略不能为空"                    |
-| └─required  | 可选                    | 布尔值   | 指定字段是否是必填项。                                                         | true, false                           |
-| └─rules     | 可选                    | 字符串   | 用于验证字段值的正则表达式规则。                                               | "/^\d{1,}$/" — 值必须是一个或多个数字 |
-| └─type      | 可选                    | 字符串   | 用于指定验证的类型，例如，"number" 表示字段值应为数字。                        | "number"                              |
-| array       | 只在 "table" 类型中可用 | 数组     | 包含表格列定义的数组。每一个列定义都是一个表单元素对象，它有相同的结构和属性。 | 见 array 字段的详细描述               |
+### 2.2 新增接入点
+1. 点击 **新增接入**
+2. 选择 `GO2RTC` 插件
+3. 填写配置：
 
-注意：
+| 配置项 | 填写内容 | 说明 |
+|--------|---------|------|
+| 接入点名称 | `本地go2rtc` | 任意名称 |
+| go2rtc API地址 | `http://localhost:1984` | 指向 go2rtc 的 API |
+| 同步间隔 | `30` | 自动同步周期(秒) |
+| 启用自动同步 | `开启` | |
 
-1. `validate` 字段和其子字段（`message`, `required`, `rules`, `type`）是一个嵌套的结构，它们定义了表单元素的验证规则。
-2. `array` 字段只适用于类型为 "table" 的表单元素，并包含一个嵌套的表单元素对象数组，用于定义表格的列。
-3. 示例
-查看附录
-4. 开发注意事项
-提供开发人员注意事项和最佳实践，包括但不限于:
-●保证 dataKey 的唯一性。
-●为每个字段提供合适的 placeholder 来指导用户输入。
-●使用合适的正则表达式进行输入验证。
+4. 点击 **确认**
+   - 如果配置正确，会提示成功。
+   - 如果提示"插件请求失败"，请检查超级管理员的HTTP服务地址配置。
 
-### 附录
+---
 
-示例
+## 三、同步与查看
 
-```text
-[
-    {
-  "dataKey": "temp",
-  "label": "读取策略(秒)",
-  "placeholder": "请输入时间间隔，单位s",
-  "type": "input",
-  "validate": {
-   "message": "读取策略不能为空",
-   "required": true,
-   "rules": "/^\\d{1,}$/",
-   "type": "number"
-  }
- },
- {
-  "type": "table",
-  "label": "属性列表",
-       "dataKey": "table1",
-  "array": [
-   {
-    "dataKey": "Interval",
-    "label": "读取策略(秒)",
-    "placeholder": "请输入时间间隔，单位s",
-    "type": "input",
-    "validate": {
-     "message": "读取策略不能为空",
-     "required": true,
-     "rules": "/^\\d{1,}$/",
-     "type": "number"
-    }
-   }
-  ]
- }
-]
-```
+### 3.1 同步设备
+接入点创建成功后，点击 **设备同步** (或等待自动同步)。
+- 平台会从 go2rtc 拉取所有流信息 (`virtual_cam`, `living_room` 等)。
 
-表单填写后生成的数据样例
+### 3.2 查看设备
+进入 **设备列表**，你会看到：
+- 设备名称: `virtual_cam`
+- 设备状态: 在线 (如果 go2rtc 中流是活跃的)
 
-```json
-{
- "attribute1":0,
- "attribute2": "",
- "table1": [
-  {
-   "attribute1":0,
-      "attribute2": ""
-  },
-  {
-   "attribute1":0,
-        "attribute2": ""
-  }
- ]
-}
+### 3.3 观看视频
+进入 **设备详情** → **实时视频** (需平台支持播放 go2rtc 流)。
+
+---
+
+## 常见问题排查
+
+### Q1: 新增接入点时提示 "插件请求失败"
+**原因**: 超级管理员插件配置中的 API 地址填错了。
+**解决**: 去掉 `http://` 前缀。只填 `172.17.0.1:12000`。
+
+### Q2: 提示 "404 Not Found"
+**原因**: 插件返回了 `null` 而不是空数组 `[]` (已在 v1.0.1 修复)。
+**解决**: 确保使用最新的插件版本。
+
+### Q3: 设备列表为空
+**原因**: go2rtc 中没有任何流。
+**解决**: 参考本文的 [添加模拟流](#方案-a-添加模拟流-virtual-camera) 章节添加一个测试流。
+
+---
+
+## 快速部署命令
+
+```bash
+# 1. 编译 (Mac上编译Linux版)
+GOOS=linux GOARCH=amd64 go build -o tp-adapter-linux cmd/main.go
+
+# 2. 部署到服务器
+./deploy.exp
 ```

@@ -1,33 +1,33 @@
 [
     {
-        "dataKey": "ServerURL",
-        "label": "OPC-UA服务器地址",
-        "placeholder": "如:opc.tcp://192.168.1.1:4840",
+        "dataKey": "api_url",
+        "label": "go2rtc API地址",
+        "placeholder": "http://localhost:1984",
         "type": "input",
         "validate": {
-            "message": "不能为空",
             "required": true,
-            "type": "string"
-        }
+            "message": "API地址不能为空"
+        },
+        "defaultValue": "http://localhost:1984"
     },
     {
-        "dataKey": "Username",
-        "label": "用户名",
-        "placeholder": "请输入用户名",
+        "dataKey": "sync_interval",
+        "label": "同步间隔(秒)",
+        "placeholder": "30",
         "type": "input",
         "validate": {
             "required": false,
-            "type": "string"
-        }
+            "type": "number"
+        },
+        "defaultValue": "30"
     },
     {
-        "dataKey": "Password",
-        "label": "密码",
-        "placeholder": "请输入密码",
-        "type": "input",
+        "dataKey": "auto_sync",
+        "label": "启用自动同步",
+        "type": "switch",
         "validate": {
-            "required": false,
-            "type": "string"
-        }
+            "required": false
+        },
+        "defaultValue": true
     }
 ]

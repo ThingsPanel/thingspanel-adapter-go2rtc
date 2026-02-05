@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"tp-plugin/internal/handler"
 	"tp-plugin/internal/platform"
+	"tp-plugin/internal/protocol"
 
 	"github.com/sirupsen/logrus"
 )
 
 // StartHTTPServer 启动HTTP服务
-func StartHTTPServer(platformClient *platform.PlatformClient, httpPort int) error {
+func StartHTTPServer(platformClient *platform.PlatformClient, httpPort int, ph protocol.ProtocolHandler) error {
 	// 创建HTTP处理器
-	httpHandler := handler.NewHTTPHandler(platformClient, logrus.StandardLogger())
+	httpHandler := handler.NewHTTPHandler(platformClient, logrus.StandardLogger(), ph)
 	handlers := httpHandler.RegisterHandlers()
 
 	// 启动HTTP服务
