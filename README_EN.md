@@ -112,6 +112,22 @@ platform:
   template_secret: "YOUR_TEMPLATE_SECRET_HERE" 
 ```
 
+## 📹 OBS Streaming Test (Live Scenario)
+
+Apart from using scripts, you can use **OBS Studio** for real streaming tests.
+
+### 1. Configure OBS
+1. Open OBS -> **Settings** -> **Stream**.
+2. **Service**: Select `Custom`.
+3. **Server**: `rtmp://192.168.31.205:1935` (Replace with your actual server IP).
+4. **Stream Key**: `obs_demo` (This becomes the stream name in go2rtc and the device name in ThingsPanel).
+
+### 2. Start Streaming
+Click **"Start Streaming"**. A green bitrate indicator should appear at the bottom if successful.
+
+### 3. Verify
+Wait for about 30 seconds. A new device named `obs_demo` will automatically appear in ThingsPanel, with the stream URL in its attributes.
+
 ## 🧪 Automated Test Script
 
 A test script is included to quickly add simulated devices:
