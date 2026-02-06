@@ -116,16 +116,27 @@ platform:
 
 Apart from using scripts, you can use **OBS Studio** for real streaming tests.
 
-### 1. Configure OBS
+### 1. Preparation (Critical)
+Before streaming, you MUST define the stream name in `go2rtc.yaml` (can be empty), otherwise go2rtc will reject the stream.
+
+**Edit `/etc/go2rtc/go2rtc.yaml`**:
+```yaml
+streams:
+  # ... other streams ...
+  obs_demo:  # 👈 Must add this line to allow "obs_demo" stream
+```
+Remember to restart the go2rtc service after editing.
+
+### 2. Configure OBS
 1. Open OBS -> **Settings** -> **Stream**.
 2. **Service**: Select `Custom`.
 3. **Server**: `rtmp://192.168.31.205:1935` (Replace with your actual server IP).
-4. **Stream Key**: `obs_demo` (This becomes the stream name in go2rtc and the device name in ThingsPanel).
+4. **Stream Key**: `obs_demo` (Must match the name in config).
 
-### 2. Start Streaming
+### 3. Start Streaming
 Click **"Start Streaming"**. A green bitrate indicator should appear at the bottom if successful.
 
-### 3. Verify
+### 4. Verify
 Wait for about 30 seconds. A new device named `obs_demo` will automatically appear in ThingsPanel, with the stream URL in its attributes.
 
 ## 🧪 Automated Test Script
